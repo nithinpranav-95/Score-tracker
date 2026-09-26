@@ -615,6 +615,7 @@ function GameApp() {
         </div>
       )}
       {celebrate && <Confetti />}
+      {winnerInfo && <WinnerOverlay info={winnerInfo} onDone={() => setWinnerInfo(null)} />}
       <header className="relative z-20 border-b border-border/80 bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 md:px-7">
           <button
