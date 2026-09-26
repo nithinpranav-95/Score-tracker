@@ -498,7 +498,7 @@ export async function changePlayerPassword({
     }
     if (!targetPlayer && playerName) {
       const { data } = await supabase.from("players").select("*").ilike("name", playerName.trim());
-      if (data && data.length > 0) targetPlayer = data[0];
+      if (data && data.length > 0) targetPlayer = data[0] ?? null;
     }
   } catch (e) {
     console.debug("Supabase lookup error during password change:", e);
