@@ -1982,10 +1982,10 @@ function LiveSession({
       </div>
       <div className="fixed inset-x-0 bottom-0 border-t border-border bg-surface p-4">
         <Button
-          onClick={() => setRound((r: number) => r + 1)}
+          onClick={handleSaveRound}
           className="mx-auto flex h-14 w-full max-w-2xl rounded-xl bg-primary text-base font-bold text-primary-foreground"
         >
-          <CirclePlus /> Save round {round}
+          <CirclePlus /> Save round {round} — add to totals
         </Button>
       </div>
     </main>
