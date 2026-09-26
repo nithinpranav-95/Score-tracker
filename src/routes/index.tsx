@@ -176,6 +176,16 @@ const animals: Record<string, string> = Object.fromEntries(
   Object.entries(spiritAnimals).map(([k, v]) => [k, v.emoji]),
 );
 const demoPlayers: Player[] = [];
+const REMOVED_GAMES_KEY = "scoreup_removed_games";
+function loadRemovedGames(): string[] {
+  try {
+    const raw = localStorage.getItem(REMOVED_GAMES_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
 const demoGames: Game[] = [
   { id: "sevens", name: "Sevens", scoring_type: "points", high_score_wins: false, accent: "lime" },
   { id: "poker", name: "Poker", scoring_type: "points", high_score_wins: true, accent: "yellow" },
@@ -398,14 +408,17 @@ function GameApp() {
         }
       }
 
+      const removedGames = loadRemovedGames();
       if (cloudGames.length > 0) {
-        setGames([...demoGames, ...cloudGames]);
+        setGames([...demoGames, ...cloudGames].filter((g) => !removedGames.includes(g.id)));
       } else {
         try {
           const savedGames = localStorage.getItem("scoreup_games");
           if (savedGames) {
             const parsed = JSON.parse(savedGames);
-            if (Array.isArray(parsed) && parsed.length > 0) setGames(parsed);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setGames(parsed.filter((g: Game) => !removedGames.includes(g.id)));
+            }
           }
         } catch (e) {
           console.debug(e);
