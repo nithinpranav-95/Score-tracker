@@ -450,9 +450,9 @@ export function hasPassword({
   playerName,
   rawQuote,
 }: {
-  playerId?: string;
-  playerName?: string;
-  rawQuote?: string | null;
+  playerId?: string | undefined;
+  playerName?: string | undefined;
+  rawQuote?: string | null | undefined;
 }): boolean {
   if (rawQuote) {
     const parsed = parseQuoteAuth(rawQuote);
@@ -474,9 +474,9 @@ export async function changePlayerPassword({
   currentPassword,
   newPassword,
 }: {
-  playerId?: string;
-  playerName?: string;
-  currentPassword?: string;
+  playerId?: string | undefined;
+  playerName?: string | undefined;
+  currentPassword?: string | undefined;
   newPassword: string;
 }): Promise<{ success: boolean; message: string }> {
   if (newPassword.length < 4) {
