@@ -176,6 +176,16 @@ const animals: Record<string, string> = Object.fromEntries(
   Object.entries(spiritAnimals).map(([k, v]) => [k, v.emoji]),
 );
 const demoPlayers: Player[] = [];
+const REMOVED_GAMES_KEY = "scoreup_removed_games";
+function loadRemovedGames(): string[] {
+  try {
+    const raw = localStorage.getItem(REMOVED_GAMES_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
 const demoGames: Game[] = [
   { id: "sevens", name: "Sevens", scoring_type: "points", high_score_wins: false, accent: "lime" },
   { id: "poker", name: "Poker", scoring_type: "points", high_score_wins: true, accent: "yellow" },
@@ -398,14 +408,17 @@ function GameApp() {
         }
       }
 
+      const removedGames = loadRemovedGames();
       if (cloudGames.length > 0) {
-        setGames([...demoGames, ...cloudGames]);
+        setGames([...demoGames, ...cloudGames].filter((g) => !removedGames.includes(g.id)));
       } else {
         try {
           const savedGames = localStorage.getItem("scoreup_games");
           if (savedGames) {
             const parsed = JSON.parse(savedGames);
-            if (Array.isArray(parsed) && parsed.length > 0) setGames(parsed);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setGames(parsed.filter((g: Game) => !removedGames.includes(g.id)));
+            }
           }
         } catch (e) {
           console.debug(e);
@@ -525,6 +538,28 @@ function GameApp() {
     if (profileId === id) setProfileId(null);
     const { error } = await supabase.from("players").delete().eq("id", id);
     if (error) console.debug("Failed to delete player:", error);
+  }
+
+  async function handleRemoveGame(game: Game) {
+    const isCustom = /^[0-9a-f]{8}-/i.test(game.id);
+    if (
+      !window.confirm(
+        `Remove ${game.name} from your games? Finished games already in history stay untouched.`,
+      )
+    )
+      return;
+    setGames((prev) => prev.filter((g) => g.id !== game.id));
+    if (isCustom) {
+      const { error } = await supabase.from("custom_games").delete().eq("id", game.id);
+      if (error) console.debug("Failed to delete game:", error);
+    } else {
+      try {
+        const nextRemoved = Array.from(new Set([...loadRemovedGames(), game.id]));
+        localStorage.setItem(REMOVED_GAMES_KEY, JSON.stringify(nextRemoved));
+      } catch (e) {
+        console.debug(e);
+      }
+    }
   }
 
   function startSessionWithPlayers(game: Game, selectedPlayers: Player[]) {
@@ -767,6 +802,7 @@ function GameApp() {
             games={games}
             players={players}
             start={handleSelectGame}
+            remove={handleRemoveGame}
             openNew={() => setNewGame(true)}
             openPlayer={setProfileId}
             goToPlayers={() => setTab("players")}
@@ -1487,6 +1523,7 @@ function PlayView({
   games,
   players,
   start,
+  remove,
   openNew,
   openPlayer,
   goToPlayers,
@@ -1494,6 +1531,7 @@ function PlayView({
   games: Game[];
   players: Player[];
   start: (g: Game) => void;
+  remove: (g: Game) => void;
   openNew: () => void;
   openPlayer: (id: string) => void;
   goToPlayers?: () => void;
@@ -1504,22 +1542,34 @@ function PlayView({
         <h2 className="font-heading text-3xl font-bold">Start a game</h2>
         <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">
           {games.map((game, i) => (
-            <button
-              key={game.id}
-              onClick={() => start(game)}
-              className="group min-h-44 rounded-[1.5rem] border border-border bg-card p-5 text-left transition hover:-translate-y-1 hover:border-primary"
-            >
-              <span
-                className={`grid size-14 place-items-center rounded-2xl text-background ${i % 3 === 0 ? "bg-primary" : i % 3 === 1 ? "bg-sun" : "bg-mint"}`}
+            <div key={game.id} className="group relative">
+              <button
+                onClick={() => start(game)}
+                className="min-h-44 w-full rounded-[1.5rem] border border-border bg-card p-5 text-left transition hover:-translate-y-1 hover:border-primary"
               >
-                <Gamepad2 />
-              </span>
-              <h3 className="mt-5 font-heading text-2xl font-bold">{game.name}</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {game.scoring_type.replace("_", " · ")} · {game.high_score_wins ? "High" : "Low"}{" "}
-                wins
-              </p>
-            </button>
+                <span
+                  className={`grid size-14 place-items-center rounded-2xl text-background ${i % 3 === 0 ? "bg-primary" : i % 3 === 1 ? "bg-sun" : "bg-mint"}`}
+                >
+                  <Gamepad2 />
+                </span>
+                <h3 className="mt-5 font-heading text-2xl font-bold">{game.name}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {game.scoring_type.replace("_", " · ")} ·{" "}
+                  {game.high_score_wins ? "High" : "Low"} wins
+                </p>
+              </button>
+              <button
+                type="button"
+                aria-label={`Remove ${game.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  remove(game);
+                }}
+                className="absolute right-2 top-2 grid size-8 place-items-center rounded-lg text-muted-foreground opacity-70 transition hover:bg-secondary hover:text-destructive focus:opacity-100 group-hover:opacity-100"
+              >
+                <Trash2 className="size-4" />
+              </button>
+            </div>
           ))}
           <button
             onClick={openNew}
