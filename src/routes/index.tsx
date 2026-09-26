@@ -1828,9 +1828,7 @@ function LiveSession({
   players,
   allSquadPlayers,
   round,
-  setRound,
-  adjust,
-  setScore,
+  saveRound,
   end,
   close,
   onAddBenchPlayer,
@@ -1839,13 +1837,20 @@ function LiveSession({
   players: LivePlayer[];
   allSquadPlayers?: Player[];
   round: number;
-  setRound: React.Dispatch<React.SetStateAction<number>> | ((fn: (r: number) => number) => void);
-  adjust: (id: string, by: number) => void;
-  setScore: (id: string, score: number) => void;
+  saveRound: (entries: Record<string, number>) => void;
   end: () => void;
   close: () => void;
   onAddBenchPlayer?: (p: Player) => void;
 }) {
+  const [entries, setEntries] = useState<Record<string, number>>({});
+  const adjustEntry = (id: string, by: number) =>
+    setEntries((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + by }));
+  const setEntry = (id: string, value: number) =>
+    setEntries((prev) => ({ ...prev, [id]: value }));
+  const handleSaveRound = () => {
+    saveRound(entries);
+    setEntries({});
+  };
   const sorted = [...players].sort((a, b) =>
     game.high_score_wins ? b.score - a.score : a.score - b.score,
   );
