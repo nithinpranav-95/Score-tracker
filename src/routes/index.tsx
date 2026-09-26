@@ -536,11 +536,11 @@ function GameApp() {
     });
   }
 
-  function adjust(id: string, by: number) {
-    setLivePlayers((list) => list.map((p) => (p.id === id ? { ...p, score: p.score + by } : p)));
-  }
-  function setScore(id: string, score: number) {
-    setLivePlayers((list) => list.map((p) => (p.id === id ? { ...p, score } : p)));
+  function saveRound(entries: Record<string, number>) {
+    setLivePlayers((list) =>
+      list.map((p) => ({ ...p, score: p.score + (entries[p.id] ?? 0) })),
+    );
+    setRound((r) => r + 1);
   }
   async function endGame() {
     if (liveGame) {
