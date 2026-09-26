@@ -2488,6 +2488,63 @@ function NewGameModal({
     </div>
   );
 }
+function WinnerOverlay({
+  info,
+  onDone,
+}: {
+  info: { gameName: string; rounds: number; results: PastSession["results"] };
+  onDone: () => void;
+}) {
+  const winner = info.results[0];
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-[1.5rem] border border-border bg-card p-6 text-center shadow-2xl">
+        <p className="text-xs font-bold uppercase tracking-widest text-primary">
+          {info.gameName} · {info.rounds} {info.rounds === 1 ? "round" : "rounds"}
+        </p>
+        <span className="animal-bob mt-3 inline-block text-6xl">🏆</span>
+        <h2 className="mt-2 font-heading text-3xl font-black">
+          {winner?.name} wins!
+        </h2>
+        <p className="mt-1 text-sm font-bold text-muted-foreground tabular-nums">
+          Final score: {winner?.score} points
+        </p>
+        <div className="mt-5 space-y-2 text-left">
+          {info.results.map((r) => (
+            <div
+              key={r.playerId}
+              className={`flex items-center justify-between rounded-xl border px-4 py-2.5 ${
+                r.rank === 1
+                  ? "border-primary bg-primary/10"
+                  : "border-border bg-secondary/40"
+              }`}
+            >
+              <span className="flex items-center gap-2 font-heading font-bold">
+                <span
+                  className={`grid size-7 place-items-center rounded-lg text-sm font-black ${
+                    r.rank === 1
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  {r.rank}
+                </span>
+                {r.name}
+              </span>
+              <span className="font-black tabular-nums">{r.score}</span>
+            </div>
+          ))}
+        </div>
+        <Button
+          onClick={onDone}
+          className="mt-6 h-12 w-full rounded-xl bg-primary font-bold text-primary-foreground"
+        >
+          Back to games
+        </Button>
+      </div>
+    </div>
+  );
+}
 function Confetti() {
   return (
     <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden">
