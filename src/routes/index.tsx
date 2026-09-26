@@ -595,9 +595,7 @@ function GameApp() {
         players={livePlayers}
         allSquadPlayers={players}
         round={round}
-        setRound={setRound}
-        adjust={adjust}
-        setScore={setScore}
+        saveRound={saveRound}
         end={endGame}
         close={() => setLiveGame(null)}
         onAddBenchPlayer={addBenchPlayerToLive}
