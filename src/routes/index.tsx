@@ -1892,12 +1892,13 @@ function LiveSession({
           </div>
         </div>
         <div className="mb-3 flex items-center justify-between px-1">
-          <h2 className="font-heading text-xl font-bold">Current ranking</h2>
-          <p className="text-xs font-bold text-muted-foreground">TYPE OR TAP TO SCORE</p>
+          <h2 className="font-heading text-xl font-bold">Round {round} scores</h2>
+          <p className="text-xs font-bold text-muted-foreground">ENTER THIS ROUND'S POINTS</p>
         </div>
         <div className="space-y-3">
           {players.map((p: LivePlayer) => {
             const rank = rankById.get(p.id);
+            const entry = entries[p.id] ?? 0;
             return (
               <div
                 key={p.id}
@@ -1912,11 +1913,22 @@ function LiveSession({
                 <span className="grid size-11 place-items-center rounded-xl bg-secondary text-2xl">
                   {animals[p.spirit_animal]}
                 </span>
-                <p className="min-w-0 truncate font-heading text-lg font-bold">{p.display_name}</p>
+                <div className="min-w-0">
+                  <p className="truncate font-heading text-lg font-bold">{p.display_name}</p>
+                  <p className="text-xs font-bold text-muted-foreground tabular-nums">
+                    Total {p.score}
+                    {entry !== 0 && (
+                      <span className="text-primary">
+                        {" "}
+                        {entry > 0 ? `+${entry}` : entry} → {p.score + entry}
+                      </span>
+                    )}
+                  </p>
+                </div>
                 <div className="col-span-3 grid grid-cols-[3rem_1fr_3rem] gap-2 sm:col-span-1 sm:contents">
                   <Button
                     aria-label={`Subtract from ${p.display_name}`}
-                    onClick={() => adjust(p.id, -1)}
+                    onClick={() => adjustEntry(p.id, -1)}
                     variant="secondary"
                     size="icon"
                     className="size-12 rounded-xl"
@@ -1924,16 +1936,19 @@ function LiveSession({
                     <Minus />
                   </Button>
                   <input
-                    aria-label={`${p.display_name} score`}
+                    aria-label={`${p.display_name} round score`}
                     type="number"
                     inputMode="numeric"
-                    value={p.score}
-                    onChange={(event) => setScore(p.id, Number(event.target.value) || 0)}
+                    placeholder="0"
+                    value={entries[p.id] ?? ""}
+                    onChange={(event) =>
+                      setEntry(p.id, event.target.value === "" ? 0 : Number(event.target.value))
+                    }
                     className="h-12 min-w-0 rounded-xl border border-border bg-secondary px-2 text-center text-2xl font-black tabular-nums outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
                   />
                   <Button
                     aria-label={`Add to ${p.display_name}`}
-                    onClick={() => adjust(p.id, 1)}
+                    onClick={() => adjustEntry(p.id, 1)}
                     size="icon"
                     className="size-12 rounded-xl bg-primary text-primary-foreground"
                   >
