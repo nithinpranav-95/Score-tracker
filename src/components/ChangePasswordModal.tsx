@@ -4,10 +4,10 @@ import { Button } from "@/components/ui/button";
 import { changePlayerPassword, hasPassword, spiritAnimals } from "@/lib/auth";
 
 export interface ChangePasswordTarget {
-  id?: string;
+  id?: string | undefined;
   name: string;
-  spirit_animal?: string;
-  quote?: string | null;
+  spirit_animal?: string | undefined;
+  quote?: string | null | undefined;
 }
 
 export function ChangePasswordModal({

@@ -253,6 +253,11 @@ function GameApp() {
   const [livePlayers, setLivePlayers] = useState<LivePlayer[]>([]);
   const [round, setRound] = useState(1);
   const [celebrate, setCelebrate] = useState(false);
+  const [winnerInfo, setWinnerInfo] = useState<{
+    gameName: string;
+    rounds: number;
+    results: PastSession["results"];
+  } | null>(null);
   const [newGame, setNewGame] = useState(false);
   const [addPlayer, setAddPlayer] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
@@ -536,11 +541,11 @@ function GameApp() {
     });
   }
 
-  function adjust(id: string, by: number) {
-    setLivePlayers((list) => list.map((p) => (p.id === id ? { ...p, score: p.score + by } : p)));
-  }
-  function setScore(id: string, score: number) {
-    setLivePlayers((list) => list.map((p) => (p.id === id ? { ...p, score } : p)));
+  function saveRound(entries: Record<string, number>) {
+    setLivePlayers((list) =>
+      list.map((p) => ({ ...p, score: p.score + (entries[p.id] ?? 0) })),
+    );
+    setRound((r) => r + 1);
   }
   async function endGame() {
     if (liveGame) {
@@ -569,6 +574,7 @@ function GameApp() {
       if (error) console.debug("Failed to save game result:", error);
       if (data) session.id = data.id;
       setSessions((list) => [session, ...list]);
+      setWinnerInfo({ gameName: liveGame.name, rounds: round, results });
     }
     playVictory();
     setCelebrate(true);
@@ -589,9 +595,7 @@ function GameApp() {
         players={livePlayers}
         allSquadPlayers={players}
         round={round}
-        setRound={setRound}
-        adjust={adjust}
-        setScore={setScore}
+        saveRound={saveRound}
         end={endGame}
         close={() => setLiveGame(null)}
         onAddBenchPlayer={addBenchPlayerToLive}
@@ -611,6 +615,7 @@ function GameApp() {
         </div>
       )}
       {celebrate && <Confetti />}
+      {winnerInfo && <WinnerOverlay info={winnerInfo} onDone={() => setWinnerInfo(null)} />}
       <header className="relative z-20 border-b border-border/80 bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 md:px-7">
           <button
@@ -1823,9 +1828,7 @@ function LiveSession({
   players,
   allSquadPlayers,
   round,
-  setRound,
-  adjust,
-  setScore,
+  saveRound,
   end,
   close,
   onAddBenchPlayer,
@@ -1834,13 +1837,20 @@ function LiveSession({
   players: LivePlayer[];
   allSquadPlayers?: Player[];
   round: number;
-  setRound: React.Dispatch<React.SetStateAction<number>> | ((fn: (r: number) => number) => void);
-  adjust: (id: string, by: number) => void;
-  setScore: (id: string, score: number) => void;
+  saveRound: (entries: Record<string, number>) => void;
   end: () => void;
   close: () => void;
   onAddBenchPlayer?: (p: Player) => void;
 }) {
+  const [entries, setEntries] = useState<Record<string, number>>({});
+  const adjustEntry = (id: string, by: number) =>
+    setEntries((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + by }));
+  const setEntry = (id: string, value: number) =>
+    setEntries((prev) => ({ ...prev, [id]: value }));
+  const handleSaveRound = () => {
+    saveRound(entries);
+    setEntries({});
+  };
   const sorted = [...players].sort((a, b) =>
     game.high_score_wins ? b.score - a.score : a.score - b.score,
   );
@@ -1882,12 +1892,13 @@ function LiveSession({
           </div>
         </div>
         <div className="mb-3 flex items-center justify-between px-1">
-          <h2 className="font-heading text-xl font-bold">Current ranking</h2>
-          <p className="text-xs font-bold text-muted-foreground">TYPE OR TAP TO SCORE</p>
+          <h2 className="font-heading text-xl font-bold">Round {round} scores</h2>
+          <p className="text-xs font-bold text-muted-foreground">ENTER THIS ROUND'S POINTS</p>
         </div>
         <div className="space-y-3">
           {players.map((p: LivePlayer) => {
             const rank = rankById.get(p.id);
+            const entry = entries[p.id] ?? 0;
             return (
               <div
                 key={p.id}
@@ -1902,11 +1913,22 @@ function LiveSession({
                 <span className="grid size-11 place-items-center rounded-xl bg-secondary text-2xl">
                   {animals[p.spirit_animal]}
                 </span>
-                <p className="min-w-0 truncate font-heading text-lg font-bold">{p.display_name}</p>
+                <div className="min-w-0">
+                  <p className="truncate font-heading text-lg font-bold">{p.display_name}</p>
+                  <p className="text-xs font-bold text-muted-foreground tabular-nums">
+                    Total {p.score}
+                    {entry !== 0 && (
+                      <span className="text-primary">
+                        {" "}
+                        {entry > 0 ? `+${entry}` : entry} → {p.score + entry}
+                      </span>
+                    )}
+                  </p>
+                </div>
                 <div className="col-span-3 grid grid-cols-[3rem_1fr_3rem] gap-2 sm:col-span-1 sm:contents">
                   <Button
                     aria-label={`Subtract from ${p.display_name}`}
-                    onClick={() => adjust(p.id, -1)}
+                    onClick={() => adjustEntry(p.id, -1)}
                     variant="secondary"
                     size="icon"
                     className="size-12 rounded-xl"
@@ -1914,16 +1936,19 @@ function LiveSession({
                     <Minus />
                   </Button>
                   <input
-                    aria-label={`${p.display_name} score`}
+                    aria-label={`${p.display_name} round score`}
                     type="number"
                     inputMode="numeric"
-                    value={p.score}
-                    onChange={(event) => setScore(p.id, Number(event.target.value) || 0)}
+                    placeholder="0"
+                    value={entries[p.id] ?? ""}
+                    onChange={(event) =>
+                      setEntry(p.id, event.target.value === "" ? 0 : Number(event.target.value))
+                    }
                     className="h-12 min-w-0 rounded-xl border border-border bg-secondary px-2 text-center text-2xl font-black tabular-nums outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
                   />
                   <Button
                     aria-label={`Add to ${p.display_name}`}
-                    onClick={() => adjust(p.id, 1)}
+                    onClick={() => adjustEntry(p.id, 1)}
                     size="icon"
                     className="size-12 rounded-xl bg-primary text-primary-foreground"
                   >
@@ -1957,10 +1982,10 @@ function LiveSession({
       </div>
       <div className="fixed inset-x-0 bottom-0 border-t border-border bg-surface p-4">
         <Button
-          onClick={() => setRound((r: number) => r + 1)}
+          onClick={handleSaveRound}
           className="mx-auto flex h-14 w-full max-w-2xl rounded-xl bg-primary text-base font-bold text-primary-foreground"
         >
-          <CirclePlus /> Save round {round}
+          <CirclePlus /> Save round {round} — add to totals
         </Button>
       </div>
     </main>
@@ -2458,6 +2483,63 @@ function NewGameModal({
           className="mt-6 h-12 w-full rounded-xl bg-primary text-primary-foreground"
         >
           Add game
+        </Button>
+      </div>
+    </div>
+  );
+}
+function WinnerOverlay({
+  info,
+  onDone,
+}: {
+  info: { gameName: string; rounds: number; results: PastSession["results"] };
+  onDone: () => void;
+}) {
+  const winner = info.results[0];
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-[1.5rem] border border-border bg-card p-6 text-center shadow-2xl">
+        <p className="text-xs font-bold uppercase tracking-widest text-primary">
+          {info.gameName} · {info.rounds} {info.rounds === 1 ? "round" : "rounds"}
+        </p>
+        <span className="animal-bob mt-3 inline-block text-6xl">🏆</span>
+        <h2 className="mt-2 font-heading text-3xl font-black">
+          {winner?.name} wins!
+        </h2>
+        <p className="mt-1 text-sm font-bold text-muted-foreground tabular-nums">
+          Final score: {winner?.score} points
+        </p>
+        <div className="mt-5 space-y-2 text-left">
+          {info.results.map((r) => (
+            <div
+              key={r.playerId}
+              className={`flex items-center justify-between rounded-xl border px-4 py-2.5 ${
+                r.rank === 1
+                  ? "border-primary bg-primary/10"
+                  : "border-border bg-secondary/40"
+              }`}
+            >
+              <span className="flex items-center gap-2 font-heading font-bold">
+                <span
+                  className={`grid size-7 place-items-center rounded-lg text-sm font-black ${
+                    r.rank === 1
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  {r.rank}
+                </span>
+                {r.name}
+              </span>
+              <span className="font-black tabular-nums">{r.score}</span>
+            </div>
+          ))}
+        </div>
+        <Button
+          onClick={onDone}
+          className="mt-6 h-12 w-full rounded-xl bg-primary font-bold text-primary-foreground"
+        >
+          Back to games
         </Button>
       </div>
     </div>

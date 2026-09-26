@@ -450,9 +450,9 @@ export function hasPassword({
   playerName,
   rawQuote,
 }: {
-  playerId?: string;
-  playerName?: string;
-  rawQuote?: string | null;
+  playerId?: string | undefined;
+  playerName?: string | undefined;
+  rawQuote?: string | null | undefined;
 }): boolean {
   if (rawQuote) {
     const parsed = parseQuoteAuth(rawQuote);
@@ -474,9 +474,9 @@ export async function changePlayerPassword({
   currentPassword,
   newPassword,
 }: {
-  playerId?: string;
-  playerName?: string;
-  currentPassword?: string;
+  playerId?: string | undefined;
+  playerName?: string | undefined;
+  currentPassword?: string | undefined;
   newPassword: string;
 }): Promise<{ success: boolean; message: string }> {
   if (newPassword.length < 4) {
@@ -498,7 +498,7 @@ export async function changePlayerPassword({
     }
     if (!targetPlayer && playerName) {
       const { data } = await supabase.from("players").select("*").ilike("name", playerName.trim());
-      if (data && data.length > 0) targetPlayer = data[0];
+      if (data && data.length > 0) targetPlayer = data[0] ?? null;
     }
   } catch (e) {
     console.debug("Supabase lookup error during password change:", e);
