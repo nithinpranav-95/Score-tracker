@@ -279,7 +279,7 @@ function GameApp() {
 
   const [hydrated, setHydrated] = useState(false);
 
-  // Load shared data from cloud DB on mount, with automatic local storage migration and recovery
+  // Load shared data from cloud DB on mount, with automatic player migration and recovery
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -355,20 +355,13 @@ function GameApp() {
         }
       }
 
-      // Check localStorage for sessions
-      let finalSessions = cloudSessions;
-      if (finalSessions.length === 0) {
-        try {
-          const savedSessions = localStorage.getItem("scoreup_sessions");
-          if (savedSessions) {
-            const parsed = JSON.parse(savedSessions);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              finalSessions = parsed;
-            }
-          }
-        } catch (e) {
-          console.debug("Failed to read local sessions:", e);
-        }
+      // Cloud results are the only score-history source. Remove legacy browser copies
+      // so a shared reset cannot be undone by stale data on an individual device.
+      const finalSessions = cloudSessions;
+      try {
+        localStorage.removeItem("scoreup_sessions");
+      } catch (e) {
+        console.debug("Failed to clear legacy local sessions:", e);
       }
 
       // Recovery: If players list is still empty but session records exist, recover players from match history!
@@ -425,14 +418,7 @@ function GameApp() {
         }
       }
 
-      if (finalSessions.length > 0) {
-        setSessions(finalSessions);
-        try {
-          localStorage.setItem("scoreup_sessions", JSON.stringify(finalSessions));
-        } catch (e) {
-          console.debug(e);
-        }
-      }
+      setSessions(finalSessions);
 
       setHydrated(true);
     })();
@@ -460,15 +446,6 @@ function GameApp() {
       console.debug(e);
     }
   }, [games, hydrated]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      localStorage.setItem("scoreup_sessions", JSON.stringify(sessions));
-    } catch (e) {
-      console.debug(e);
-    }
-  }, [sessions, hydrated]);
 
   // Ensure logged-in user is recognized in players list
   useEffect(() => {

@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Treat Lovable Cloud `game_results` as the sole score-history source; legacy browser storage must never restore deleted scores, because resets must apply consistently to every device.
