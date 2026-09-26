@@ -540,6 +540,28 @@ function GameApp() {
     if (error) console.debug("Failed to delete player:", error);
   }
 
+  async function handleRemoveGame(game: Game) {
+    const isCustom = /^[0-9a-f]{8}-/i.test(game.id);
+    if (
+      !window.confirm(
+        `Remove ${game.name} from your games? Finished games already in history stay untouched.`,
+      )
+    )
+      return;
+    setGames((prev) => prev.filter((g) => g.id !== game.id));
+    if (isCustom) {
+      const { error } = await supabase.from("custom_games").delete().eq("id", game.id);
+      if (error) console.debug("Failed to delete game:", error);
+    } else {
+      try {
+        const nextRemoved = Array.from(new Set([...loadRemovedGames(), game.id]));
+        localStorage.setItem(REMOVED_GAMES_KEY, JSON.stringify(nextRemoved));
+      } catch (e) {
+        console.debug(e);
+      }
+    }
+  }
+
   function startSessionWithPlayers(game: Game, selectedPlayers: Player[]) {
     setLiveGame(game);
     setLivePlayers(selectedPlayers.map((p) => ({ ...p, score: 0 })));
