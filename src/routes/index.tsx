@@ -253,6 +253,11 @@ function GameApp() {
   const [livePlayers, setLivePlayers] = useState<LivePlayer[]>([]);
   const [round, setRound] = useState(1);
   const [celebrate, setCelebrate] = useState(false);
+  const [winnerInfo, setWinnerInfo] = useState<{
+    gameName: string;
+    rounds: number;
+    results: PastSession["results"];
+  } | null>(null);
   const [newGame, setNewGame] = useState(false);
   const [addPlayer, setAddPlayer] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
@@ -569,6 +574,7 @@ function GameApp() {
       if (error) console.debug("Failed to save game result:", error);
       if (data) session.id = data.id;
       setSessions((list) => [session, ...list]);
+      setWinnerInfo({ gameName: liveGame.name, rounds: round, results });
     }
     playVictory();
     setCelebrate(true);
