@@ -2610,6 +2610,57 @@ function HistoryView({
   );
 }
 
+function EditSessionModal({
+  session,
+  close,
+  save,
+}: {
+  session: PastSession;
+  close: () => void;
+  save: (sessionId: string, scores: Record<string, number>) => void;
+}) {
+  const [scores, setScores] = useState<Record<string, number>>(() =>
+    Object.fromEntries(session.results.map((r) => [r.playerId, r.score])),
+  );
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-end bg-background/80 p-4 backdrop-blur-sm sm:place-items-center">
+      <div className="w-full max-w-md rounded-[1.5rem] border border-border bg-card p-6">
+        <div className="flex items-center justify-between">
+          <h2 className="font-heading text-2xl font-bold">Edit {session.gameName} scores</h2>
+          <Button onClick={close} variant="ghost" size="icon">
+            <X />
+          </Button>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {session.date} · {session.rounds} rounds — ranks update automatically.
+        </p>
+        <div className="mt-5 space-y-3">
+          {session.results.map((r) => (
+            <div key={r.playerId} className="flex items-center gap-3">
+              <span className="flex-1 font-bold">{r.name}</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={scores[r.playerId] ?? 0}
+                onChange={(e) =>
+                  setScores((m) => ({ ...m, [r.playerId]: Number(e.target.value) || 0 }))
+                }
+                className="h-11 w-24 rounded-xl border border-border bg-secondary px-3 text-center font-bold outline-none focus:border-primary"
+              />
+            </div>
+          ))}
+        </div>
+        <Button
+          onClick={() => save(session.id, scores)}
+          className="mt-6 h-12 w-full rounded-xl bg-primary text-primary-foreground"
+        >
+          Save changes
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function NewGameModal({
   close,
   save,
