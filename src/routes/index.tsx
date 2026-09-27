@@ -2149,6 +2149,46 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
     "#A855F7",
   ];
 
+  // Winners grouped by month (newest first)
+  const monthlyWinners = (() => {
+    const byMonth = new Map<
+      string,
+      { label: string; sortKey: number; wins: Map<string, { name: string; count: number }> }
+    >();
+    for (const s of sessions) {
+      const d = new Date(s.playedAt);
+      if (Number.isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      let bucket = byMonth.get(key);
+      if (!bucket) {
+        bucket = {
+          label: d.toLocaleDateString(undefined, { month: "long", year: "numeric" }),
+          sortKey: d.getFullYear() * 12 + d.getMonth(),
+          wins: new Map(),
+        };
+        byMonth.set(key, bucket);
+      }
+      for (const r of s.results) {
+        if (r.rank !== 1) continue;
+        const entry = bucket.wins.get(r.playerId) ?? { name: r.name, count: 0 };
+        entry.count += 1;
+        bucket.wins.set(r.playerId, entry);
+      }
+    }
+    return [...byMonth.values()]
+      .sort((a, b) => b.sortKey - a.sortKey)
+      .map((m) => {
+        const leaders = [...m.wins.values()].sort((a, b) => b.count - a.count);
+        const top = leaders[0]?.count ?? 0;
+        return {
+          label: m.label,
+          games: [...m.wins.values()].reduce((sum, w) => sum + w.count, 0),
+          champions: leaders.filter((w) => w.count === top),
+          standings: leaders,
+        };
+      });
+  })();
+
   return (
     <section className="space-y-6">
       {/* Top Header with Badges matching mockup */}
