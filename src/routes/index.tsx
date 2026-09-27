@@ -597,6 +597,26 @@ function GameApp() {
     setTimeout(() => setCelebrate(false), 2800);
     setLiveGame(null);
   }
+  const [editingSession, setEditingSession] = useState<PastSession | null>(null);
+  async function handleUpdateSession(sessionId: string, scores: Record<string, number>) {
+    const session = sessions.find((s) => s.id === sessionId);
+    if (!session) return;
+    const game = games.find((g) => g.name === session.gameName);
+    const highWins = game?.high_score_wins ?? true;
+    const ordered = session.results
+      .map((r) => ({ ...r, score: scores[r.playerId] ?? r.score }))
+      .sort((a, b) => (highWins ? b.score - a.score : a.score - b.score))
+      .map((r, i) => ({ ...r, rank: i + 1 }));
+    const { error } = await supabase
+      .from("game_results")
+      .update({ results: ordered })
+      .eq("id", sessionId);
+    if (error) console.debug("Failed to update game result:", error);
+    setSessions((list) =>
+      list.map((s) => (s.id === sessionId ? { ...s, results: ordered } : s)),
+    );
+    setEditingSession(null);
+  }
   const nav = [
     { id: "play", icon: Gamepad2, label: "Play" },
     { id: "players", icon: Users, label: "Players" },
@@ -632,6 +652,13 @@ function GameApp() {
       )}
       {celebrate && <Confetti />}
       {winnerInfo && <WinnerOverlay info={winnerInfo} onDone={() => setWinnerInfo(null)} />}
+      {editingSession && (
+        <EditSessionModal
+          session={editingSession}
+          close={() => setEditingSession(null)}
+          save={handleUpdateSession}
+        />
+      )}
       <header className="relative z-20 border-b border-border/80 bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 md:px-7">
           <button
@@ -801,7 +828,7 @@ function GameApp() {
           <RanksView players={players} sessions={sessions} openPlayer={setProfileId} />
         )}
         {tab === "stats" && <StatsView players={players} sessions={sessions} />}
-        {tab === "history" && <HistoryView sessions={sessions} />}
+        {tab === "history" && <HistoryView sessions={sessions} onEdit={setEditingSession} />}
       </main>
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur md:hidden">
         <div className="mx-auto flex max-w-xl justify-around px-3 py-2">
@@ -2527,7 +2554,13 @@ function CustomStatsTooltip({
     </div>
   );
 }
-function HistoryView({ sessions }: { sessions: PastSession[] }) {
+function HistoryView({
+  sessions,
+  onEdit,
+}: {
+  sessions: PastSession[];
+  onEdit: (s: PastSession) => void;
+}) {
   const rows = sessions.map((s) => ({
     key: s.id,
     g: s.gameName,
@@ -2558,11 +2591,73 @@ function HistoryView({ sessions }: { sessions: PastSession[] }) {
                 <p className="text-sm text-muted-foreground">{x.d}</p>
               </div>
               <p className="font-bold text-primary">{x.s}</p>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Edit ${x.g} scores`}
+                onClick={() => {
+                  const s = sessions.find((y) => y.id === x.key);
+                  if (s) onEdit(s);
+                }}
+              >
+                <Pencil className="size-4" />
+              </Button>
             </div>
           ))}
         </div>
       )}
     </section>
+  );
+}
+
+function EditSessionModal({
+  session,
+  close,
+  save,
+}: {
+  session: PastSession;
+  close: () => void;
+  save: (sessionId: string, scores: Record<string, number>) => void;
+}) {
+  const [scores, setScores] = useState<Record<string, number>>(() =>
+    Object.fromEntries(session.results.map((r) => [r.playerId, r.score])),
+  );
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-end bg-background/80 p-4 backdrop-blur-sm sm:place-items-center">
+      <div className="w-full max-w-md rounded-[1.5rem] border border-border bg-card p-6">
+        <div className="flex items-center justify-between">
+          <h2 className="font-heading text-2xl font-bold">Edit {session.gameName} scores</h2>
+          <Button onClick={close} variant="ghost" size="icon">
+            <X />
+          </Button>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {session.date} · {session.rounds} rounds — ranks update automatically.
+        </p>
+        <div className="mt-5 space-y-3">
+          {session.results.map((r) => (
+            <div key={r.playerId} className="flex items-center gap-3">
+              <span className="flex-1 font-bold">{r.name}</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={scores[r.playerId] ?? 0}
+                onChange={(e) =>
+                  setScores((m) => ({ ...m, [r.playerId]: Number(e.target.value) || 0 }))
+                }
+                className="h-11 w-24 rounded-xl border border-border bg-secondary px-3 text-center font-bold outline-none focus:border-primary"
+              />
+            </div>
+          ))}
+        </div>
+        <Button
+          onClick={() => save(session.id, scores)}
+          className="mt-6 h-12 w-full rounded-xl bg-primary text-primary-foreground"
+        >
+          Save changes
+        </Button>
+      </div>
+    </div>
   );
 }
 
