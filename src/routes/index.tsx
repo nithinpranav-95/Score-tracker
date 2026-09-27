@@ -5,6 +5,7 @@ import {
   BarChart3,
   Check,
   CirclePlus,
+  Crown,
   Gamepad2,
   History,
   KeyRound,
