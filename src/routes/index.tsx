@@ -544,10 +544,12 @@ function GameApp() {
     }
   }
 
+  const [roundHistory, setRoundHistory] = useState<Record<string, number>[]>([]);
   function startSessionWithPlayers(game: Game, selectedPlayers: Player[]) {
     setLiveGame(game);
     setLivePlayers(selectedPlayers.map((p) => ({ ...p, score: 0 })));
     setRound(1);
+    setRoundHistory([]);
     setSetupGame(null);
   }
 
@@ -562,6 +564,7 @@ function GameApp() {
     setLivePlayers((list) =>
       list.map((p) => ({ ...p, score: p.score + (entries[p.id] ?? 0) })),
     );
+    setRoundHistory((h) => [...h, entries]);
     setRound((r) => r + 1);
   }
   async function endGame() {
