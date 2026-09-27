@@ -2527,7 +2527,13 @@ function CustomStatsTooltip({
     </div>
   );
 }
-function HistoryView({ sessions }: { sessions: PastSession[] }) {
+function HistoryView({
+  sessions,
+  onEdit,
+}: {
+  sessions: PastSession[];
+  onEdit: (s: PastSession) => void;
+}) {
   const rows = sessions.map((s) => ({
     key: s.id,
     g: s.gameName,
