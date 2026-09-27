@@ -2564,6 +2564,17 @@ function HistoryView({
                 <p className="text-sm text-muted-foreground">{x.d}</p>
               </div>
               <p className="font-bold text-primary">{x.s}</p>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Edit ${x.g} scores`}
+                onClick={() => {
+                  const s = sessions.find((y) => y.id === x.key);
+                  if (s) onEdit(s);
+                }}
+              >
+                <Pencil className="size-4" />
+              </Button>
             </div>
           ))}
         </div>
