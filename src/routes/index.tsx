@@ -86,6 +86,7 @@ type PastSession = {
   id: string;
   gameName: string;
   date: string;
+  playedAt: string;
   rounds: number;
   results: { playerId: string; name: string; score: number; rank: number }[];
 };
@@ -321,6 +322,7 @@ function GameApp() {
               day: "numeric",
               month: "short",
             }),
+            playedAt: r.played_at,
             rounds: r.rounds,
             results: (r.results as PastSession["results"]) ?? [],
           }));
@@ -575,6 +577,7 @@ function GameApp() {
         id: crypto.randomUUID(),
         gameName: liveGame.name,
         date: now.toLocaleDateString(undefined, { day: "numeric", month: "short" }),
+        playedAt: now.toISOString(),
         rounds: round,
         results,
       };
