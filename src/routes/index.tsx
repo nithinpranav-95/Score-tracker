@@ -5,6 +5,7 @@ import {
   BarChart3,
   Check,
   CirclePlus,
+  Crown,
   Gamepad2,
   History,
   KeyRound,
@@ -86,6 +87,7 @@ type PastSession = {
   id: string;
   gameName: string;
   date: string;
+  playedAt: string;
   rounds: number;
   results: { playerId: string; name: string; score: number; rank: number }[];
 };
@@ -321,6 +323,7 @@ function GameApp() {
               day: "numeric",
               month: "short",
             }),
+            playedAt: r.played_at,
             rounds: r.rounds,
             results: (r.results as PastSession["results"]) ?? [],
           }));
@@ -575,6 +578,7 @@ function GameApp() {
         id: crypto.randomUUID(),
         gameName: liveGame.name,
         date: now.toLocaleDateString(undefined, { day: "numeric", month: "short" }),
+        playedAt: now.toISOString(),
         rounds: round,
         results,
       };
@@ -2146,6 +2150,46 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
     "#A855F7",
   ];
 
+  // Winners grouped by month (newest first)
+  const monthlyWinners = (() => {
+    const byMonth = new Map<
+      string,
+      { label: string; sortKey: number; wins: Map<string, { name: string; count: number }> }
+    >();
+    for (const s of sessions) {
+      const d = new Date(s.playedAt);
+      if (Number.isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      let bucket = byMonth.get(key);
+      if (!bucket) {
+        bucket = {
+          label: d.toLocaleDateString(undefined, { month: "long", year: "numeric" }),
+          sortKey: d.getFullYear() * 12 + d.getMonth(),
+          wins: new Map(),
+        };
+        byMonth.set(key, bucket);
+      }
+      for (const r of s.results) {
+        if (r.rank !== 1) continue;
+        const entry = bucket.wins.get(r.playerId) ?? { name: r.name, count: 0 };
+        entry.count += 1;
+        bucket.wins.set(r.playerId, entry);
+      }
+    }
+    return [...byMonth.values()]
+      .sort((a, b) => b.sortKey - a.sortKey)
+      .map((m) => {
+        const leaders = [...m.wins.values()].sort((a, b) => b.count - a.count);
+        const top = leaders[0]?.count ?? 0;
+        return {
+          label: m.label,
+          games: [...m.wins.values()].reduce((sum, w) => sum + w.count, 0),
+          champions: leaders.filter((w) => w.count === top),
+          standings: leaders,
+        };
+      });
+  })();
+
   return (
     <section className="space-y-6">
       {/* Top Header with Badges matching mockup */}
@@ -2384,6 +2428,61 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
               </BarChart>
             </ResponsiveContainer>
           )}
+        </div>
+      </div>
+
+      {/* Winners by month */}
+      <div className="rounded-[1.75rem] border border-border bg-card p-5 md:p-7 shadow-xl">
+        <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-400">
+          <Crown className="size-3.5" />
+          <span>Monthly Champions</span>
+        </div>
+        <h3 className="mt-1 font-heading text-2xl font-bold text-foreground">
+          Winners by Month
+        </h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Who took home the most wins each month
+        </p>
+
+        <div className="mt-5 space-y-3">
+          {monthlyWinners.map((m) => (
+            <div
+              key={m.label}
+              className="rounded-2xl border border-border/70 bg-secondary/40 p-4"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-heading text-base font-bold text-foreground">{m.label}</p>
+                <p className="text-xs font-bold text-muted-foreground">
+                  {m.games} {m.games === 1 ? "game" : "games"} played
+                </p>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {m.champions.map((c) => (
+                  <span
+                    key={c.name}
+                    className="flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-sm font-bold text-amber-300"
+                  >
+                    <span>👑</span>
+                    {c.name}
+                    <span className="text-xs font-normal text-amber-200/80">
+                      {c.count} {c.count === 1 ? "win" : "wins"}
+                    </span>
+                  </span>
+                ))}
+              </div>
+              {m.standings.length > m.champions.length && (
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-border/50 pt-2.5 text-xs text-muted-foreground">
+                  {m.standings
+                    .filter((w) => !m.champions.includes(w))
+                    .map((w) => (
+                      <span key={w.name}>
+                        {w.name} · {w.count} {w.count === 1 ? "win" : "wins"}
+                      </span>
+                    ))}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </section>
