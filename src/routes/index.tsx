@@ -90,6 +90,7 @@ type PastSession = {
   playedAt: string;
   rounds: number;
   results: { playerId: string; name: string; score: number; rank: number }[];
+  roundsData: Record<string, number>[];
 };
 
 type AnimalInfo = {
