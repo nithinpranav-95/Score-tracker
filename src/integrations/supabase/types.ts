@@ -49,6 +49,7 @@ export type Database = {
           played_at: string
           results: Json
           rounds: number
+          rounds_data: Json
         }
         Insert: {
           created_at?: string
@@ -57,6 +58,7 @@ export type Database = {
           played_at?: string
           results?: Json
           rounds?: number
+          rounds_data?: Json
         }
         Update: {
           created_at?: string
@@ -65,6 +67,7 @@ export type Database = {
           played_at?: string
           results?: Json
           rounds?: number
+          rounds_data?: Json
         }
         Relationships: []
       }

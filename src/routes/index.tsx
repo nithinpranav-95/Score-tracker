@@ -90,6 +90,7 @@ type PastSession = {
   playedAt: string;
   rounds: number;
   results: { playerId: string; name: string; score: number; rank: number }[];
+  roundsData: Record<string, number>[];
 };
 
 type AnimalInfo = {
@@ -326,6 +327,7 @@ function GameApp() {
             playedAt: r.played_at,
             rounds: r.rounds,
             results: (r.results as PastSession["results"]) ?? [],
+            roundsData: (r.rounds_data as PastSession["roundsData"]) ?? [],
           }));
         }
       } catch (err) {
@@ -542,10 +544,12 @@ function GameApp() {
     }
   }
 
+  const [roundHistory, setRoundHistory] = useState<Record<string, number>[]>([]);
   function startSessionWithPlayers(game: Game, selectedPlayers: Player[]) {
     setLiveGame(game);
     setLivePlayers(selectedPlayers.map((p) => ({ ...p, score: 0 })));
     setRound(1);
+    setRoundHistory([]);
     setSetupGame(null);
   }
 
@@ -560,6 +564,7 @@ function GameApp() {
     setLivePlayers((list) =>
       list.map((p) => ({ ...p, score: p.score + (entries[p.id] ?? 0) })),
     );
+    setRoundHistory((h) => [...h, entries]);
     setRound((r) => r + 1);
   }
   async function endGame() {
@@ -581,10 +586,16 @@ function GameApp() {
         playedAt: now.toISOString(),
         rounds: round,
         results,
+        roundsData: roundHistory,
       };
       const { data, error } = await supabase
         .from("game_results")
-        .insert({ game_name: liveGame.name, rounds: round, results })
+        .insert({
+          game_name: liveGame.name,
+          rounds: round,
+          results,
+          rounds_data: roundHistory,
+        })
         .select()
         .single();
       if (error) console.debug("Failed to save game result:", error);
@@ -598,22 +609,30 @@ function GameApp() {
     setLiveGame(null);
   }
   const [editingSession, setEditingSession] = useState<PastSession | null>(null);
-  async function handleUpdateSession(sessionId: string, scores: Record<string, number>) {
+  async function handleUpdateSession(
+    sessionId: string,
+    roundsData: Record<string, number>[],
+  ) {
     const session = sessions.find((s) => s.id === sessionId);
     if (!session) return;
     const game = games.find((g) => g.name === session.gameName);
     const highWins = game?.high_score_wins ?? true;
     const ordered = session.results
-      .map((r) => ({ ...r, score: scores[r.playerId] ?? r.score }))
+      .map((r) => ({
+        ...r,
+        score: roundsData.reduce((sum, rd) => sum + (rd[r.playerId] ?? 0), 0),
+      }))
       .sort((a, b) => (highWins ? b.score - a.score : a.score - b.score))
       .map((r, i) => ({ ...r, rank: i + 1 }));
     const { error } = await supabase
       .from("game_results")
-      .update({ results: ordered })
+      .update({ results: ordered, rounds_data: roundsData })
       .eq("id", sessionId);
     if (error) console.debug("Failed to update game result:", error);
     setSessions((list) =>
-      list.map((s) => (s.id === sessionId ? { ...s, results: ordered } : s)),
+      list.map((s) =>
+        s.id === sessionId ? { ...s, results: ordered, roundsData } : s,
+      ),
     );
     setEditingSession(null);
   }
@@ -2617,14 +2636,33 @@ function EditSessionModal({
 }: {
   session: PastSession;
   close: () => void;
-  save: (sessionId: string, scores: Record<string, number>) => void;
+  save: (sessionId: string, roundsData: Record<string, number>[]) => void;
 }) {
-  const [scores, setScores] = useState<Record<string, number>>(() =>
-    Object.fromEntries(session.results.map((r) => [r.playerId, r.score])),
+  const hasRounds = session.roundsData.length > 0;
+  const [roundsData, setRoundsData] = useState<Record<string, number>[]>(() =>
+    hasRounds
+      ? session.roundsData.map((rd) => ({ ...rd }))
+      : [
+          Object.fromEntries(
+            session.results.map((r) => [r.playerId, r.score]),
+          ),
+        ],
   );
+  const totals = Object.fromEntries(
+    session.results.map((r) => [
+      r.playerId,
+      roundsData.reduce((sum, rd) => sum + (rd[r.playerId] ?? 0), 0),
+    ]),
+  );
+  const setCell = (roundIdx: number, playerId: string, value: number) =>
+    setRoundsData((list) =>
+      list.map((rd, i) =>
+        i === roundIdx ? { ...rd, [playerId]: value } : rd,
+      ),
+    );
   return (
     <div className="fixed inset-0 z-50 grid place-items-end bg-background/80 p-4 backdrop-blur-sm sm:place-items-center">
-      <div className="w-full max-w-md rounded-[1.5rem] border border-border bg-card p-6">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[1.5rem] border border-border bg-card p-6">
         <div className="flex items-center justify-between">
           <h2 className="font-heading text-2xl font-bold">Edit {session.gameName} scores</h2>
           <Button onClick={close} variant="ghost" size="icon">
@@ -2632,26 +2670,40 @@ function EditSessionModal({
           </Button>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          {session.date} · {session.rounds} rounds — ranks update automatically.
+          {session.date} · {roundsData.length} rounds — totals, ranks and winner recalculate automatically.
         </p>
-        <div className="mt-5 space-y-3">
+        <div className="mt-5 space-y-4">
           {session.results.map((r) => (
-            <div key={r.playerId} className="flex items-center gap-3">
-              <span className="flex-1 font-bold">{r.name}</span>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={scores[r.playerId] ?? 0}
-                onChange={(e) =>
-                  setScores((m) => ({ ...m, [r.playerId]: Number(e.target.value) || 0 }))
-                }
-                className="h-11 w-24 rounded-xl border border-border bg-secondary px-3 text-center font-bold outline-none focus:border-primary"
-              />
+            <div key={r.playerId} className="rounded-2xl border border-border bg-secondary/40 p-3">
+              <div className="flex items-center justify-between">
+                <span className="font-bold">{r.name}</span>
+                <span className="text-sm font-bold text-primary">
+                  Total {totals[r.playerId] ?? 0}
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {roundsData.map((rd, i) => (
+                  <label key={i} className="flex flex-col items-center gap-1">
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground">
+                      R{i + 1}
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      value={rd[r.playerId] ?? 0}
+                      onChange={(e) =>
+                        setCell(i, r.playerId, Number(e.target.value) || 0)
+                      }
+                      className="h-10 w-16 rounded-lg border border-border bg-secondary px-2 text-center text-sm font-bold outline-none focus:border-primary"
+                    />
+                  </label>
+                ))}
+              </div>
             </div>
           ))}
         </div>
         <Button
-          onClick={() => save(session.id, scores)}
+          onClick={() => save(session.id, roundsData)}
           className="mt-6 h-12 w-full rounded-xl bg-primary text-primary-foreground"
         >
           Save changes
