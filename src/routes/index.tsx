@@ -597,6 +597,26 @@ function GameApp() {
     setTimeout(() => setCelebrate(false), 2800);
     setLiveGame(null);
   }
+  const [editingSession, setEditingSession] = useState<PastSession | null>(null);
+  async function handleUpdateSession(sessionId: string, scores: Record<string, number>) {
+    const session = sessions.find((s) => s.id === sessionId);
+    if (!session) return;
+    const game = games.find((g) => g.name === session.gameName);
+    const highWins = game?.high_score_wins ?? true;
+    const ordered = session.results
+      .map((r) => ({ ...r, score: scores[r.playerId] ?? r.score }))
+      .sort((a, b) => (highWins ? b.score - a.score : a.score - b.score))
+      .map((r, i) => ({ ...r, rank: i + 1 }));
+    const { error } = await supabase
+      .from("game_results")
+      .update({ results: ordered })
+      .eq("id", sessionId);
+    if (error) console.debug("Failed to update game result:", error);
+    setSessions((list) =>
+      list.map((s) => (s.id === sessionId ? { ...s, results: ordered } : s)),
+    );
+    setEditingSession(null);
+  }
   const nav = [
     { id: "play", icon: Gamepad2, label: "Play" },
     { id: "players", icon: Users, label: "Players" },
