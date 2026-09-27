@@ -609,22 +609,30 @@ function GameApp() {
     setLiveGame(null);
   }
   const [editingSession, setEditingSession] = useState<PastSession | null>(null);
-  async function handleUpdateSession(sessionId: string, scores: Record<string, number>) {
+  async function handleUpdateSession(
+    sessionId: string,
+    roundsData: Record<string, number>[],
+  ) {
     const session = sessions.find((s) => s.id === sessionId);
     if (!session) return;
     const game = games.find((g) => g.name === session.gameName);
     const highWins = game?.high_score_wins ?? true;
     const ordered = session.results
-      .map((r) => ({ ...r, score: scores[r.playerId] ?? r.score }))
+      .map((r) => ({
+        ...r,
+        score: roundsData.reduce((sum, rd) => sum + (rd[r.playerId] ?? 0), 0),
+      }))
       .sort((a, b) => (highWins ? b.score - a.score : a.score - b.score))
       .map((r, i) => ({ ...r, rank: i + 1 }));
     const { error } = await supabase
       .from("game_results")
-      .update({ results: ordered })
+      .update({ results: ordered, rounds_data: roundsData })
       .eq("id", sessionId);
     if (error) console.debug("Failed to update game result:", error);
     setSessions((list) =>
-      list.map((s) => (s.id === sessionId ? { ...s, results: ordered } : s)),
+      list.map((s) =>
+        s.id === sessionId ? { ...s, results: ordered, roundsData } : s,
+      ),
     );
     setEditingSession(null);
   }
