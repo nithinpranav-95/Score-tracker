@@ -586,10 +586,16 @@ function GameApp() {
         playedAt: now.toISOString(),
         rounds: round,
         results,
+        roundsData: roundHistory,
       };
       const { data, error } = await supabase
         .from("game_results")
-        .insert({ game_name: liveGame.name, rounds: round, results })
+        .insert({
+          game_name: liveGame.name,
+          rounds: round,
+          results,
+          rounds_data: roundHistory,
+        })
         .select()
         .single();
       if (error) console.debug("Failed to save game result:", error);
