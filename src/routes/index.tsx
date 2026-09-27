@@ -327,6 +327,7 @@ function GameApp() {
             playedAt: r.played_at,
             rounds: r.rounds,
             results: (r.results as PastSession["results"]) ?? [],
+            roundsData: (r.rounds_data as PastSession["roundsData"]) ?? [],
           }));
         }
       } catch (err) {
