@@ -821,7 +821,7 @@ function GameApp() {
           <RanksView players={players} sessions={sessions} openPlayer={setProfileId} />
         )}
         {tab === "stats" && <StatsView players={players} sessions={sessions} />}
-        {tab === "history" && <HistoryView sessions={sessions} />}
+        {tab === "history" && <HistoryView sessions={sessions} onEdit={setEditingSession} />}
       </main>
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur md:hidden">
         <div className="mx-auto flex max-w-xl justify-around px-3 py-2">
