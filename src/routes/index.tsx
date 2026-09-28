@@ -2105,6 +2105,8 @@ function LiveSession({
   onAddBenchPlayer?: (p: Player) => void;
 }) {
   const [entries, setEntries] = useState<Record<string, number>>({});
+  const [showFinishConfirm, setShowFinishConfirm] = useState(false);
+
   const adjustEntry = (id: string, by: number) =>
     setEntries((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + by }));
   const setEntry = (id: string, value: number) => setEntries((prev) => ({ ...prev, [id]: value }));
@@ -2134,7 +2136,10 @@ function LiveSession({
             </p>
             <h1 className="font-heading text-xl font-bold">{game.name}</h1>
           </div>
-          <Button onClick={end} className="rounded-xl bg-primary text-primary-foreground">
+          <Button
+            onClick={() => setShowFinishConfirm(true)}
+            className="rounded-xl bg-primary text-primary-foreground font-bold"
+          >
             Finish
           </Button>
         </div>
@@ -2249,6 +2254,35 @@ function LiveSession({
           <CirclePlus /> Save round {round} — add to totals
         </Button>
       </div>
+
+      {showFinishConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+            <h3 className="font-heading text-xl font-bold text-foreground">Finish Game Session?</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Are you sure you want to finish and save this game session? Final standings will be recorded to your troop history.
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowFinishConfirm(false)}
+                className="rounded-xl"
+              >
+                Continue Playing
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowFinishConfirm(false);
+                  end();
+                }}
+                className="rounded-xl bg-primary font-bold text-primary-foreground"
+              >
+                Finish & Save
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -2262,6 +2296,7 @@ function EmptyStats({ label }: { label: string }) {
     </div>
   );
 }
+
 function RanksView({
   players,
   sessions,
@@ -2271,12 +2306,53 @@ function RanksView({
   sessions: PastSession[];
   openPlayer: (id: string) => void;
 }) {
-  const stats = playerStats(players, sessions);
+  const [selectedGame, setSelectedGame] = useState<string>("all");
+  const playedGames = Array.from(new Set(sessions.map((s) => s.gameName))).sort();
+  const filteredSessions =
+    selectedGame === "all" ? sessions : sessions.filter((s) => s.gameName === selectedGame);
+  const stats = playerStats(players, filteredSessions);
+
   return (
     <section>
-      <p className="font-bold text-primary">ALL GAMES · ALL TIME</p>
-      <h2 className="mt-1 font-heading text-4xl font-bold">Leaderboard</h2>
-      {sessions.length === 0 ? (
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="font-bold text-primary">
+            {selectedGame === "all" ? "ALL GAMES · ALL TIME" : `${selectedGame.toUpperCase()} · LEADERBOARD`}
+          </p>
+          <h2 className="mt-1 font-heading text-4xl font-bold">Leaderboard</h2>
+        </div>
+        {playedGames.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-border/60 bg-secondary/40 p-1.5">
+            <button
+              type="button"
+              onClick={() => setSelectedGame("all")}
+              className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                selectedGame === "all"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Overall (All Games)
+            </button>
+            {playedGames.map((g) => (
+              <button
+                key={g}
+                type="button"
+                onClick={() => setSelectedGame(g)}
+                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                  selectedGame === g
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {filteredSessions.length === 0 ? (
         <EmptyStats label="Finish a game and the leaderboard fills up." />
       ) : (
         <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-border bg-card">
@@ -2309,13 +2385,18 @@ function RanksView({
     </section>
   );
 }
+
 function StatsView({ players, sessions }: { players: Player[]; sessions: PastSession[] }) {
-  const stats = playerStats(players, sessions);
+  const [selectedGame, setSelectedGame] = useState<string>("all");
+  const playedGames = Array.from(new Set(sessions.map((s) => s.gameName))).sort();
+  const filteredSessions =
+    selectedGame === "all" ? sessions : sessions.filter((s) => s.gameName === selectedGame);
+  const stats = playerStats(players, filteredSessions);
   const [metric, setMetric] = useState<"rate" | "wins">("rate");
   const [layout, setLayout] = useState<"columns" | "rows">("columns");
   const [sortOrder, setSortOrder] = useState<"desc" | "asc" | "alpha">("desc");
 
-  const totalVictories = sessions.length;
+  const totalVictories = filteredSessions.length;
   const squadSize = players.length;
   const mvp = stats.reduce<PlayerStat | null>((best, s) => {
     if (!s.games) return best;
@@ -2389,7 +2470,7 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
       string,
       { label: string; sortKey: number; wins: Map<string, { name: string; count: number }> }
     >();
-    for (const s of sessions) {
+    for (const s of filteredSessions) {
       const d = new Date(s.playedAt);
       if (Number.isNaN(d.getTime())) continue;
       const key = `${d.getFullYear()}-${d.getMonth()}`;
@@ -2425,7 +2506,7 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
 
   return (
     <section className="space-y-6">
-      {/* Top Header with Badges matching mockup */}
+      {/* Top Header with Badges and Game Filter */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="flex items-center gap-2.5">
@@ -2437,6 +2518,35 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
           <p className="mt-1 text-sm text-muted-foreground">
             Total game night victories recorded by each player across the squad
           </p>
+          {playedGames.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-1 rounded-2xl border border-border/60 bg-secondary/40 p-1.5 w-fit">
+              <button
+                type="button"
+                onClick={() => setSelectedGame("all")}
+                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                  selectedGame === "all"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Overall (All Games)
+              </button>
+              {playedGames.map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => setSelectedGame(g)}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                    selectedGame === g
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
