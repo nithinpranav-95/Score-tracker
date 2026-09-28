@@ -13,6 +13,7 @@ import {
   LogOut,
   Mail,
   Minus,
+  Pause,
   Pencil,
   Play,
   Plus,
@@ -757,6 +758,10 @@ function GameApp() {
         end={endGame}
         close={() => setLiveGame(null)}
         onAddBenchPlayer={addBenchPlayerToLive}
+        saveLater={(entries) => {
+          saveRound(entries);
+          setLiveGame(null);
+        }}
       />
     );
   const openProfile = players.find((p) => p.id === profileId);
@@ -2121,6 +2126,7 @@ function LiveSession({
   end,
   close,
   onAddBenchPlayer,
+  saveLater,
 }: {
   game: Game;
   players: LivePlayer[];
@@ -2130,6 +2136,7 @@ function LiveSession({
   end: () => void;
   close: () => void;
   onAddBenchPlayer?: (p: Player) => void;
+  saveLater?: (entries: Record<string, number>) => void;
 }) {
   const [entries, setEntries] = useState<Record<string, number>>({});
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
@@ -2274,12 +2281,27 @@ function LiveSession({
         )}
       </div>
       <div className="fixed inset-x-0 bottom-0 border-t border-border bg-surface p-4">
-        <Button
-          onClick={handleSaveRound}
-          className="mx-auto flex h-14 w-full max-w-2xl rounded-xl bg-primary text-base font-bold text-primary-foreground"
-        >
-          <CirclePlus /> Save round {round} — add to totals
-        </Button>
+        <div className="mx-auto flex max-w-2xl gap-3">
+          <Button
+            onClick={handleSaveRound}
+            className="flex h-14 flex-1 rounded-xl bg-primary text-base font-bold text-primary-foreground"
+          >
+            <CirclePlus /> Save round {round}
+          </Button>
+          {saveLater && (
+            <Button
+              onClick={() => {
+                const hasEntries = Object.values(entries).some((v) => v !== 0);
+                if (hasEntries) saveLater(entries);
+                else close();
+              }}
+              variant="outline"
+              className="flex h-14 shrink-0 rounded-xl border-primary/30 text-sm font-bold text-primary hover:bg-primary/10"
+            >
+              <Pause className="size-4" /> Save & Continue Later
+            </Button>
+          )}
+        </div>
       </div>
 
       {showFinishConfirm && (
