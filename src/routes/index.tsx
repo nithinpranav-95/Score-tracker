@@ -585,7 +585,33 @@ function GameApp() {
   }, [authUser, hydrated]);
 
   function handleSelectGame(game: Game) {
-    setSetupGame(game);
+    if (ongoingSession) {
+      if (
+        window.confirm(
+          `You have an ongoing ${ongoingSession.game.name} game (Round ${ongoingSession.round}) in progress.\n\nDo you want to discard it to start a new game of ${game.name}?`,
+        )
+      ) {
+        removeActiveSession();
+        setSetupGame(game);
+      }
+    } else {
+      setSetupGame(game);
+    }
+  }
+
+  function handleOpenNewGame() {
+    if (ongoingSession) {
+      if (
+        window.confirm(
+          `You have an ongoing ${ongoingSession.game.name} game (Round ${ongoingSession.round}) in progress.\n\nDo you want to discard it to create a new game?`,
+        )
+      ) {
+        removeActiveSession();
+        setNewGame(true);
+      }
+    } else {
+      setNewGame(true);
+    }
   }
 
   async function handleAddPlayer(name: string, animal: string, quote?: string) {
@@ -1033,7 +1059,7 @@ function GameApp() {
             games={games}
             players={players}
             start={handleSelectGame}
-            openNew={() => setNewGame(true)}
+            openNew={handleOpenNewGame}
             openPlayer={setProfileId}
             openAddPlayer={handleTriggerAddPlayer}
             openCreateTroop={() => setShowCreateTroop(true)}
@@ -1866,46 +1892,83 @@ function PlayView({
     <>
       {ongoingSession && ongoingSession.game && (
         <section className="mb-8">
-          <div className="relative overflow-hidden rounded-[1.75rem] border border-primary/40 bg-gradient-to-br from-primary/20 via-primary/10 to-card p-6 shadow-xl backdrop-blur">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="space-y-1.5">
-                <div className="inline-flex items-center gap-2 rounded-full bg-primary/20 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-primary">
+          <div className="rounded-[1.75rem] border border-primary/40 bg-gradient-to-br from-primary/15 via-primary/5 to-card p-6 shadow-xl backdrop-blur">
+            {/* Top row: Game Name + Continue / Discard actions */}
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/60 pb-5">
+              <div>
+                <div className="mb-1 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-primary">
                   <span className="inline-block size-2 animate-pulse rounded-full bg-primary" />
-                  Game Saved &amp; Ongoing
+                  Ongoing Game
                 </div>
-                <h2 className="font-heading text-2xl font-bold text-foreground sm:text-3xl">
-                  Continue the {ongoingSession.game.name} game from round {ongoingSession.round}
+                <h2 className="font-heading text-3xl font-extrabold text-foreground sm:text-4xl">
+                  {ongoingSession.game.name}
                 </h2>
-                <p className="text-sm font-medium text-muted-foreground">
-                  {ongoingSession.livePlayers?.length ?? 0} players · Round {ongoingSession.round}
-                  {leaderPlayer && (
-                    <>
-                      {" · Leader: "}
-                      <span className="font-bold text-foreground">
-                        {leaderPlayer.display_name} ({leaderPlayer.score} pts)
-                      </span>
-                    </>
-                  )}
-                </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
                 <Button
                   onClick={onResumeOngoing}
-                  className="h-12 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground shadow-lg hover:brightness-110 active:scale-95"
+                  className="h-12 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-lg hover:brightness-110 active:scale-95"
                 >
                   <Play className="mr-2 size-4 fill-current" />
-                  Continue Round {ongoingSession.round}
+                  Continue with round {ongoingSession.round}
                 </Button>
                 {onDiscardOngoing && (
                   <Button
                     variant="outline"
                     onClick={onDiscardOngoing}
-                    className="h-12 rounded-xl border-border text-xs font-bold text-muted-foreground hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                    className="h-12 rounded-xl border-border px-4 text-xs font-bold text-muted-foreground hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
                   >
-                    Discard Game
+                    Discard
                   </Button>
                 )}
+              </div>
+            </div>
+
+            {/* Bottom row: Live Rankings & Player Scores */}
+            <div className="mt-5">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Current Standings ({ongoingSession.livePlayers?.length ?? 0} players)
+                </p>
+                <p className="text-xs font-semibold text-primary">
+                  Round {ongoingSession.round}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
+                {[...(ongoingSession.livePlayers || [])]
+                  .sort((a, b) =>
+                    ongoingSession.game.high_score_wins ? b.score - a.score : a.score - b.score,
+                  )
+                  .map((player, idx) => (
+                    <div
+                      key={player.id}
+                      className={`flex items-center gap-2.5 rounded-xl border p-2.5 transition ${
+                        idx === 0
+                          ? "border-primary/40 bg-primary/10 shadow-sm"
+                          : "border-border/60 bg-card/60"
+                      }`}
+                    >
+                      <span
+                        className={`grid size-7 place-items-center rounded-lg text-xs font-black ${
+                          idx === 0
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-secondary text-muted-foreground"
+                        }`}
+                      >
+                        #{idx + 1}
+                      </span>
+                      <span className="text-xl">{animals[player.spirit_animal] ?? "🦊"}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-bold text-foreground">
+                          {player.display_name}
+                        </p>
+                        <p className="text-[11px] font-black text-primary tabular-nums">
+                          {player.score} pts
+                        </p>
+                      </div>
+                    </div>
+                  ))}
               </div>
             </div>
           </div>
