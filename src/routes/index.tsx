@@ -2148,15 +2148,49 @@ function LiveSession({
     saveRound(entries);
     setEntries({});
   };
-  const sorted = [...players].sort((a, b) =>
+
+  // Projected totals = saved score + current unsaved entry
+  const projected = players.map((p) => ({
+    ...p,
+    projectedScore: p.score + (entries[p.id] ?? 0),
+  }));
+
+  // Sort by projected score for live ranking
+  const projectedSorted = [...projected].sort((a, b) =>
+    game.high_score_wins ? b.projectedScore - a.projectedScore : a.projectedScore - b.projectedScore,
+  );
+
+  // Compute tied projected ranks
+  const projectedRankById = new Map<string, number>();
+  let projRank = 1;
+  projectedSorted.forEach((p, i) => {
+    if (i > 0 && p.projectedScore === projectedSorted[i - 1].projectedScore) {
+      projectedRankById.set(p.id, projectedRankById.get(projectedSorted[i - 1].id)!);
+    } else {
+      projectedRankById.set(p.id, projRank);
+    }
+    projRank = i + 2;
+  });
+
+  // Display list ordered by projected rank so it re-sorts live
+  const displayList = [...projected].sort((a, b) =>
+    game.high_score_wins ? b.projectedScore - a.projectedScore : a.projectedScore - b.projectedScore,
+  );
+
+  // Static saved-score leader (for the header banner)
+  const savedSorted = [...players].sort((a, b) =>
     game.high_score_wins ? b.score - a.score : a.score - b.score,
   );
-  const rankById = new Map(
-    sorted.map((player: LivePlayer, index: number) => [player.id, index + 1]),
-  );
+
+  // Live projected leader
+  const projLeader = projectedSorted[0];
+
   const benchPlayers = (allSquadPlayers ?? []).filter(
     (sp: Player) => !players.some((lp: LivePlayer) => lp.id === sp.id),
   );
+
+  const hasAnyEntry = Object.values(entries).some((v) => v !== 0);
+
   return (
     <main className="min-h-screen bg-background pb-28">
       <header className="sticky top-0 z-20 border-b border-border bg-background/95 px-4 py-4 backdrop-blur">
@@ -2179,16 +2213,21 @@ function LiveSession({
         </div>
       </header>
       <div className="mx-auto max-w-2xl px-4 py-5">
+        {/* Leader banner — shows projected leader while entries are in progress */}
         <div className="mb-5 flex items-center justify-between rounded-2xl bg-primary p-4 text-primary-foreground">
           <div>
-            <p className="text-xs font-bold">CURRENT LEADER</p>
-            <p className="font-heading text-2xl font-bold">{sorted[0]?.display_name}</p>
+            <p className="text-xs font-bold">
+              {hasAnyEntry ? "PROJECTED LEADER" : "CURRENT LEADER"}
+            </p>
+            <p className="font-heading text-2xl font-bold">{projLeader?.display_name}</p>
           </div>
           <div className="text-right">
             <span className="animal-bob inline-block text-3xl">
-              {animals[sorted[0]?.spirit_animal ?? ""]}
+              {animals[projLeader?.spirit_animal ?? ""]}
             </span>
-            <p className="text-3xl font-black tabular-nums">{sorted[0]?.score}</p>
+            <p className="text-3xl font-black tabular-nums">
+              {hasAnyEntry ? projLeader?.projectedScore : savedSorted[0]?.score}
+            </p>
           </div>
         </div>
         <div className="mb-3 flex items-center justify-between px-1">
@@ -2196,8 +2235,8 @@ function LiveSession({
           <p className="text-xs font-bold text-muted-foreground">ENTER THIS ROUND'S POINTS</p>
         </div>
         <div className="space-y-3">
-          {players.map((p: LivePlayer) => {
-            const rank = rankById.get(p.id);
+          {displayList.map((p) => {
+            const rank = projectedRankById.get(p.id);
             const entry = entries[p.id] ?? 0;
             return (
               <div
@@ -2206,7 +2245,7 @@ function LiveSession({
               >
                 <span
                   aria-label={`Rank ${rank}`}
-                  className={`grid size-10 place-items-center rounded-xl font-black ${rank === 1 ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}
+                  className={`grid size-10 place-items-center rounded-xl font-black transition-colors ${rank === 1 ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}
                 >
                   {rank}
                 </span>
@@ -2216,12 +2255,16 @@ function LiveSession({
                 <div className="min-w-0">
                   <p className="truncate font-heading text-lg font-bold">{p.display_name}</p>
                   <p className="text-xs font-bold text-muted-foreground tabular-nums">
-                    Total {p.score}
-                    {entry !== 0 && (
-                      <span className="text-primary">
-                        {" "}
-                        {entry > 0 ? `+${entry}` : entry} → {p.score + entry}
-                      </span>
+                    {entry !== 0 ? (
+                      <>
+                        <span>{p.score}</span>
+                        <span className="text-primary">
+                          {" "}{entry > 0 ? `+${entry}` : entry} →{" "}
+                          <span className="text-base font-black text-foreground">{p.projectedScore}</span>
+                        </span>
+                      </>
+                    ) : (
+                      <span>Total {p.score}</span>
                     )}
                   </p>
                 </div>
