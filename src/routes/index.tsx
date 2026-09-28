@@ -2143,7 +2143,16 @@ function LiveSession({
 
   const adjustEntry = (id: string, by: number) =>
     setEntries((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + by }));
-  const setEntry = (id: string, value: number) => setEntries((prev) => ({ ...prev, [id]: value }));
+  const setEntry = (id: string, value: number | null) => {
+    setEntries((prev) => {
+      if (value === null) {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      }
+      return { ...prev, [id]: value };
+    });
+  };
   const handleSaveRound = () => {
     saveRound(entries);
     setEntries({});
@@ -2176,9 +2185,18 @@ function LiveSession({
     ...p,
     liveTotal: p.score + (entries[p.id] ?? 0),
   }));
-  const grandLiveTotal = liveAverages.reduce((sum, p) => sum + p.liveTotal, 0);
-  const liveAvg = players.length > 0 ? (grandLiveTotal / players.length).toFixed(1) : "0.0";
-  const hasAnyEntry = Object.values(entries).some((v) => v !== 0);
+  
+  const providedIds = Object.keys(entries);
+  const hasAnyEntry = providedIds.length > 0;
+  
+  const avgCount = hasAnyEntry ? providedIds.length : players.length;
+  const avgSum = hasAnyEntry
+    ? liveAverages.filter(p => providedIds.includes(p.id)).reduce((sum, p) => sum + p.liveTotal, 0)
+    : liveAverages.reduce((sum, p) => sum + p.liveTotal, 0);
+  const liveAvg = avgCount > 0 ? (avgSum / avgCount).toFixed(1) : "0.0";
+
+  const roundAvgSum = providedIds.reduce((sum, id) => sum + entries[id], 0);
+  const roundAvg = providedIds.length > 0 ? (roundAvgSum / providedIds.length).toFixed(1) : "0.0";
 
   return (
     <main className="min-h-screen bg-background pb-28">
@@ -2301,7 +2319,7 @@ function LiveSession({
                     placeholder="0"
                     value={entries[p.id] ?? ""}
                     onChange={(event) =>
-                      setEntry(p.id, event.target.value === "" ? 0 : Number(event.target.value))
+                      setEntry(p.id, event.target.value === "" ? null : Number(event.target.value))
                     }
                     className="h-12 min-w-0 rounded-xl border border-border bg-secondary px-2 text-center text-2xl font-black tabular-nums outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
                   />
@@ -2327,17 +2345,27 @@ function LiveSession({
               <div key={p.id} className={`rounded-2xl border p-3 text-center ${i === 0 ? "border-primary/40 bg-primary/10" : "border-border bg-card"}`}>
                 <p className="text-lg">{animals[p.spirit_animal] ?? "🦊"}</p>
                 <p className="truncate text-xs font-bold">{p.display_name}</p>
-                <p className={`text-lg font-black tabular-nums ${hasAnyEntry && entries[p.id] ? "text-primary" : "text-foreground"}`}>
+                <p className={`text-lg font-black tabular-nums ${hasAnyEntry && entries[p.id] !== undefined ? "text-primary" : "text-foreground"}`}>
                   {p.liveTotal}
                 </p>
                 <p className="text-[10px] text-muted-foreground">live pts</p>
               </div>
             ))}
         </div>
-        <div className="mt-2 rounded-xl bg-secondary px-4 py-2 text-center">
-          <span className="text-xs font-bold text-muted-foreground">Group avg: </span>
-          <span className="text-sm font-black tabular-nums">{liveAvg}</span>
-          {hasAnyEntry && <span className="ml-1 text-xs text-primary">(live)</span>}
+        <div className="mt-2 rounded-xl bg-secondary px-4 py-2 flex items-center justify-center gap-6 text-center">
+          <div>
+            <span className="text-xs font-bold text-muted-foreground">Avg Total: </span>
+            <span className="text-sm font-black tabular-nums">{liveAvg}</span>
+            {hasAnyEntry && <span className="ml-1 text-[10px] text-muted-foreground">({providedIds.length} players)</span>}
+          </div>
+          {hasAnyEntry && (
+            <div>
+              <span className="text-xs font-bold text-muted-foreground">Round Avg: </span>
+              <span className="text-sm font-black tabular-nums text-primary">
+                {roundAvgSum > 0 ? `+${roundAvg}` : roundAvg}
+              </span>
+            </div>
+          )}
         </div>
 
         {benchPlayers.length > 0 && onAddBenchPlayer && (
