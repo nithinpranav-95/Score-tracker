@@ -2309,7 +2309,7 @@ function RanksView({
   const filteredSessions =
     selectedGame === "all" ? sessions : sessions.filter((s) => s.gameName === selectedGame);
   const stats = playerStats(players, filteredSessions);
-  const [metric, setMetric] = useState<"rate" | "wins">("rate");
+  const [metric, setMetric] = useState<"rank" | "rate" | "wins">("rank");
   const [layout, setLayout] = useState<"columns" | "rows">("columns");
   const [sortOrder, setSortOrder] = useState<"desc" | "asc" | "alpha">("desc");
 
@@ -2354,31 +2354,41 @@ function RanksView({
   const sortedData = [...stats]
     .sort((a, b) => {
       if (sortOrder === "desc") {
-        return metric === "rate"
-          ? b.rate - a.rate || b.wins - a.wins || a.name.localeCompare(b.name)
-          : b.wins - a.wins || b.rate - a.rate || a.name.localeCompare(b.name);
+        return metric === "rank"
+          ? (rankMap.get(a.id) ?? 999) - (rankMap.get(b.id) ?? 999)
+          : metric === "rate"
+            ? b.rate - a.rate || b.wins - a.wins || a.name.localeCompare(b.name)
+            : b.wins - a.wins || b.rate - a.rate || a.name.localeCompare(b.name);
       }
       if (sortOrder === "asc") {
-        return metric === "rate"
-          ? a.rate - b.rate || a.wins - b.wins || a.name.localeCompare(b.name)
-          : a.wins - b.wins || a.rate - b.rate || a.name.localeCompare(b.name);
+        return metric === "rank"
+          ? (rankMap.get(b.id) ?? 999) - (rankMap.get(a.id) ?? 999)
+          : metric === "rate"
+            ? a.rate - b.rate || a.wins - b.wins || a.name.localeCompare(b.name)
+            : a.wins - b.wins || a.rate - b.rate || a.name.localeCompare(b.name);
       }
       return a.name.localeCompare(b.name);
     })
     .map((s) => {
       const rank = rankMap.get(s.id) ?? 1;
+      const rankScore = Math.max(1, squadSize - rank + 1);
+      const value = metric === "rank" ? rankScore : metric === "rate" ? s.rate : s.wins;
+      const displayLabel =
+        metric === "rank"
+          ? `Rank #${rank}`
+          : metric === "rate"
+            ? `#${rank} · ${s.rate}%`
+            : s.wins > 0
+              ? `#${rank} · ${s.wins} 🏆`
+              : `#${rank} · 0`;
+
       return {
         ...s,
         rank,
         rankLabel: `#${rank}`,
         nameWithRank: `#${rank} ${s.name}`,
-        value: metric === "rate" ? s.rate : s.wins,
-        displayLabel:
-          metric === "rate"
-            ? `#${rank} · ${s.rate}%`
-            : s.wins > 0
-              ? `#${rank} · ${s.wins} 🏆`
-              : `#${rank} · 0`,
+        value,
+        displayLabel,
       };
     });
 
@@ -2524,16 +2534,37 @@ function RanksView({
           <div>
             <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-400">
               <BarChart3 className="size-3.5" />
-              <span>{metric === "rate" ? "WIN RATE & RANKINGS CHART" : "VICTORIES & RANKINGS CHART"}</span>
+              <span>
+                {metric === "rank"
+                  ? `RANKING POSITION CHART (#1 TO #${squadSize})`
+                  : metric === "rate"
+                    ? "WIN RATE & RANKINGS CHART"
+                    : "VICTORIES & RANKINGS CHART"}
+              </span>
             </div>
             <h3 className="mt-1 font-heading text-2xl font-bold text-foreground">
-              {metric === "rate" ? "Trooper Win Rates & Rankings" : "Trooper Total Wins & Rankings"}
+              {metric === "rank"
+                ? "Trooper Standings & Positions"
+                : metric === "rate"
+                  ? "Trooper Win Rates & Rankings"
+                  : "Trooper Total Wins & Rankings"}
             </h3>
           </div>
 
           {/* Controls */}
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="flex items-center rounded-xl border border-border/60 bg-secondary/80 p-1">
+              <button
+                type="button"
+                onClick={() => setMetric("rank")}
+                className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
+                  metric === "rank"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Rank Position (#1–#{squadSize})
+              </button>
               <button
                 type="button"
                 onClick={() => setMetric("rate")}
@@ -2625,8 +2656,14 @@ function RanksView({
                   stroke="var(--muted-foreground)"
                   tick={{ fontSize: 12 }}
                   tickLine={false}
-                  domain={metric === "rate" ? [0, 100] : [0, "auto"]}
-                  tickFormatter={(v) => (metric === "rate" ? `${v}%` : `${v}`)}
+                  domain={metric === "rank" ? [0, squadSize] : metric === "rate" ? [0, 100] : [0, "auto"]}
+                  tickFormatter={(v) => {
+                    if (metric === "rank") {
+                      const r = squadSize - Math.round(v) + 1;
+                      return r >= 1 && r <= squadSize ? `#${r}` : "";
+                    }
+                    return metric === "rate" ? `${v}%` : `${v}`;
+                  }}
                   allowDecimals={false}
                 />
                 <Tooltip content={<CustomStatsTooltip />} />
@@ -2669,8 +2706,14 @@ function RanksView({
                 <XAxis
                   type="number"
                   stroke="var(--muted-foreground)"
-                  domain={metric === "rate" ? [0, 100] : [0, "auto"]}
-                  tickFormatter={(v) => (metric === "rate" ? `${v}%` : `${v}`)}
+                  domain={metric === "rank" ? [0, squadSize] : metric === "rate" ? [0, 100] : [0, "auto"]}
+                  tickFormatter={(v) => {
+                    if (metric === "rank") {
+                      const r = squadSize - Math.round(v) + 1;
+                      return r >= 1 && r <= squadSize ? `#${r}` : "";
+                    }
+                    return metric === "rate" ? `${v}%` : `${v}`;
+                  }}
                   allowDecimals={false}
                   tickLine={false}
                 />
