@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
 import {
   signInWithNameAndPassword,
+  TROOP_NAME,
   signUpWithNameAndPassword,
   spiritAnimals,
   useAuth,
