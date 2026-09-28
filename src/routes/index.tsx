@@ -776,22 +776,6 @@ function GameApp() {
                         type="button"
                         onClick={() => {
                           setShowAccountMenu(false);
-                          setChangePasswordTarget({
-                            id: authUser.id,
-                            display_name: authUser.name,
-                            spirit_animal: authUser.spirit_animal,
-                            quote: authUser.quote,
-                          });
-                        }}
-                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-foreground transition hover:bg-secondary"
-                      >
-                        <KeyRound className="size-3.5 text-primary" />
-                        <span>Change Password</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowAccountMenu(false);
                           authSignOut();
                         }}
                         className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-destructive transition hover:bg-destructive/10"
