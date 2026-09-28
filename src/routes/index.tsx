@@ -562,9 +562,7 @@ function GameApp() {
   }
 
   function saveRound(entries: Record<string, number>) {
-    setLivePlayers((list) =>
-      list.map((p) => ({ ...p, score: p.score + (entries[p.id] ?? 0) })),
-    );
+    setLivePlayers((list) => list.map((p) => ({ ...p, score: p.score + (entries[p.id] ?? 0) })));
     setRoundHistory((h) => [...h, entries]);
     setRound((r) => r + 1);
   }
@@ -610,10 +608,7 @@ function GameApp() {
     setLiveGame(null);
   }
   const [editingSession, setEditingSession] = useState<PastSession | null>(null);
-  async function handleUpdateSession(
-    sessionId: string,
-    roundsData: Record<string, number>[],
-  ) {
+  async function handleUpdateSession(sessionId: string, roundsData: Record<string, number>[]) {
     const session = sessions.find((s) => s.id === sessionId);
     if (!session) return;
     const game = games.find((g) => g.name === session.gameName);
@@ -631,9 +626,7 @@ function GameApp() {
       .eq("id", sessionId);
     if (error) console.debug("Failed to update game result:", error);
     setSessions((list) =>
-      list.map((s) =>
-        s.id === sessionId ? { ...s, results: ordered, roundsData } : s,
-      ),
+      list.map((s) => (s.id === sessionId ? { ...s, results: ordered, roundsData } : s)),
     );
     setEditingSession(null);
   }
@@ -702,7 +695,9 @@ function GameApp() {
               <p className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
                 {authUser ? `Trooper · ${authUser.name}` : "Game Night"}
               </p>
-              <h1 className="font-heading text-xl font-bold leading-tight">{authUser?.troop ?? TROOP_NAME}</h1>
+              <h1 className="font-heading text-xl font-bold leading-tight">
+                {authUser?.troop ?? TROOP_NAME}
+              </h1>
             </div>
           </button>
 
@@ -781,6 +776,15 @@ function GameApp() {
                         <User className="size-3.5 text-primary" />
                         <span>My Player Profile</span>
                       </button>
+                      <Link
+                        to="/auth"
+                        search={{ mode: "create" }}
+                        onClick={() => setShowAccountMenu(false)}
+                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-foreground transition hover:bg-secondary"
+                      >
+                        <Users className="size-3.5 text-primary" />
+                        <span>Create New Troop</span>
+                      </Link>
                       <button
                         type="button"
                         onClick={() => {
@@ -1583,8 +1587,8 @@ function PlayView({
                 </span>
                 <h3 className="mt-5 font-heading text-2xl font-bold">{game.name}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {game.scoring_type.replace("_", " · ")} ·{" "}
-                  {game.high_score_wins ? "High" : "Low"} wins
+                  {game.scoring_type.replace("_", " · ")} · {game.high_score_wins ? "High" : "Low"}{" "}
+                  wins
                 </p>
               </button>
               <button
@@ -1613,13 +1617,23 @@ function PlayView({
         </div>
       </section>
       <section className="mt-10">
-        <div>
-          <h2 className="font-heading text-3xl font-bold">The squad</h2>
-          <p className="text-sm text-muted-foreground">
-            {players.length === 0
-              ? "No players yet — select a game above to start and add players"
-              : `${players.length} friend${players.length === 1 ? "" : "s"} ready for game night`}
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-heading text-3xl font-bold">The squad</h2>
+            <p className="text-sm text-muted-foreground">
+              {players.length === 0
+                ? "No players yet — select a game above to start and add players"
+                : `${players.length} friend${players.length === 1 ? "" : "s"} ready for game night`}
+            </p>
+          </div>
+          <Link
+            to="/auth"
+            search={{ mode: "create" }}
+            className="flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3.5 py-2 text-xs font-bold text-primary transition hover:bg-primary/20"
+          >
+            <Users className="size-4" />
+            <span>Create a Troop</span>
+          </Link>
         </div>
 
         {players.length === 0 ? (
@@ -1924,8 +1938,7 @@ function LiveSession({
   const [entries, setEntries] = useState<Record<string, number>>({});
   const adjustEntry = (id: string, by: number) =>
     setEntries((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + by }));
-  const setEntry = (id: string, value: number) =>
-    setEntries((prev) => ({ ...prev, [id]: value }));
+  const setEntry = (id: string, value: number) => setEntries((prev) => ({ ...prev, [id]: value }));
   const handleSaveRound = () => {
     saveRound(entries);
     setEntries({});
@@ -2485,19 +2498,12 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
           <Crown className="size-3.5" />
           <span>Monthly Champions</span>
         </div>
-        <h3 className="mt-1 font-heading text-2xl font-bold text-foreground">
-          Winners by Month
-        </h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Who took home the most wins each month
-        </p>
+        <h3 className="mt-1 font-heading text-2xl font-bold text-foreground">Winners by Month</h3>
+        <p className="mt-1 text-sm text-muted-foreground">Who took home the most wins each month</p>
 
         <div className="mt-5 space-y-3">
           {monthlyWinners.map((m) => (
-            <div
-              key={m.label}
-              className="rounded-2xl border border-border/70 bg-secondary/40 p-4"
-            >
+            <div key={m.label} className="rounded-2xl border border-border/70 bg-secondary/40 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="font-heading text-base font-bold text-foreground">{m.label}</p>
                 <p className="text-xs font-bold text-muted-foreground">
@@ -2644,11 +2650,7 @@ function EditSessionModal({
   const [roundsData, setRoundsData] = useState<Record<string, number>[]>(() =>
     hasRounds
       ? session.roundsData.map((rd) => ({ ...rd }))
-      : [
-          Object.fromEntries(
-            session.results.map((r) => [r.playerId, r.score]),
-          ),
-        ],
+      : [Object.fromEntries(session.results.map((r) => [r.playerId, r.score]))],
   );
   const totals = Object.fromEntries(
     session.results.map((r) => [
@@ -2658,9 +2660,7 @@ function EditSessionModal({
   );
   const setCell = (roundIdx: number, playerId: string, value: number) =>
     setRoundsData((list) =>
-      list.map((rd, i) =>
-        i === roundIdx ? { ...rd, [playerId]: value } : rd,
-      ),
+      list.map((rd, i) => (i === roundIdx ? { ...rd, [playerId]: value } : rd)),
     );
   return (
     <div className="fixed inset-0 z-50 grid place-items-end bg-background/80 p-4 backdrop-blur-sm sm:place-items-center">
@@ -2672,7 +2672,8 @@ function EditSessionModal({
           </Button>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          {session.date} · {roundsData.length} rounds — totals, ranks and winner recalculate automatically.
+          {session.date} · {roundsData.length} rounds — totals, ranks and winner recalculate
+          automatically.
         </p>
         <div className="mt-5 space-y-4">
           {session.results.map((r) => (
@@ -2693,9 +2694,7 @@ function EditSessionModal({
                       type="number"
                       inputMode="numeric"
                       value={rd[r.playerId] ?? 0}
-                      onChange={(e) =>
-                        setCell(i, r.playerId, Number(e.target.value) || 0)
-                      }
+                      onChange={(e) => setCell(i, r.playerId, Number(e.target.value) || 0)}
                       className="h-10 w-16 rounded-lg border border-border bg-secondary px-2 text-center text-sm font-bold outline-none focus:border-primary"
                     />
                   </label>
@@ -2778,9 +2777,7 @@ function WinnerOverlay({
           {info.gameName} · {info.rounds} {info.rounds === 1 ? "round" : "rounds"}
         </p>
         <span className="animal-bob mt-3 inline-block text-6xl">🏆</span>
-        <h2 className="mt-2 font-heading text-3xl font-black">
-          {winner?.name} wins!
-        </h2>
+        <h2 className="mt-2 font-heading text-3xl font-black">{winner?.name} wins!</h2>
         <p className="mt-1 text-sm font-bold text-muted-foreground tabular-nums">
           Final score: {winner?.score} points
         </p>
@@ -2789,9 +2786,7 @@ function WinnerOverlay({
             <div
               key={r.playerId}
               className={`flex items-center justify-between rounded-xl border px-4 py-2.5 ${
-                r.rank === 1
-                  ? "border-primary bg-primary/10"
-                  : "border-border bg-secondary/40"
+                r.rank === 1 ? "border-primary bg-primary/10" : "border-border bg-secondary/40"
               }`}
             >
               <span className="flex items-center gap-2 font-heading font-bold">

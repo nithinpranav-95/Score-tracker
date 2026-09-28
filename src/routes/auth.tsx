@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Check, Gamepad2, LogIn, Plus, User, Users, X } from "lucide-react";
+import { Check, Gamepad2, LogIn, Mail, Plus, User, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createTroop, enterTroop, spiritAnimals, useAuth, signOut } from "@/lib/auth";
 
@@ -32,9 +32,16 @@ export function AuthPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [mode, setMode] = useState<"enter" | "create">("enter");
+  const [mode, setMode] = useState<"enter" | "create">(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("mode") === "create") return "create";
+    }
+    return "enter";
+  });
   const [troop, setTroop] = useState("");
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [animal, setAnimal] = useState("lion");
   const [troopers, setTroopers] = useState<string[]>(["", "", ""]);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +63,7 @@ export function AuthPage() {
       const { user: u } =
         mode === "enter"
           ? await enterTroop({ troop, name })
-          : await createTroop({ troop, name, spirit_animal: animal, troopers });
+          : await createTroop({ troop, name, email, spirit_animal: animal, troopers });
       setSuccess(`Welcome, ${u.name}! Entering ${u.troop}...`);
       setTimeout(() => navigate({ to: "/" }), 600);
     } catch (err: unknown) {
@@ -105,7 +112,11 @@ export function AuthPage() {
                 <Button onClick={() => navigate({ to: "/" })} className="h-12 rounded-xl font-bold">
                   <Gamepad2 className="mr-2 size-4" /> Go to Game Board
                 </Button>
-                <Button onClick={() => signOut()} variant="ghost" className="h-11 rounded-xl text-xs">
+                <Button
+                  onClick={() => signOut()}
+                  variant="ghost"
+                  className="h-11 rounded-xl text-xs"
+                >
                   Leave / Switch Trooper
                 </Button>
               </div>
@@ -192,6 +203,23 @@ export function AuthPage() {
                 {mode === "create" && (
                   <>
                     <div>
+                      <label htmlFor="auth-email" className={labelCls}>
+                        Email Address
+                      </label>
+                      <div className="relative mt-1.5">
+                        <Mail className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <input
+                          id="auth-email"
+                          type="email"
+                          required
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="e.g. nithin@example.com"
+                          className={`${inputCls} pl-10`}
+                        />
+                      </div>
+                    </div>
+                    <div>
                       <label className={labelCls}>Your Spirit Animal</label>
                       <div className="mt-2 grid max-h-36 grid-cols-6 gap-2 overflow-y-auto rounded-xl border border-border/70 bg-secondary/40 p-2">
                         {Object.entries(spiritAnimals).map(([key, info]) => (
@@ -217,7 +245,9 @@ export function AuthPage() {
                             aria-label={`Trooper ${i + 1}`}
                             value={t}
                             onChange={(e) =>
-                              setTroopers((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))
+                              setTroopers((prev) =>
+                                prev.map((x, j) => (j === i ? e.target.value : x)),
+                              )
                             }
                             placeholder={`Trooper ${i + 1}`}
                             className={inputCls}

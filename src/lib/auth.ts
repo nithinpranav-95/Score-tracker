@@ -259,11 +259,13 @@ export async function enterTroop({
 export async function createTroop({
   troop,
   name,
+  email,
   spirit_animal,
   troopers,
 }: {
   troop: string;
   name: string;
+  email?: string;
   spirit_animal: string;
   troopers: string[];
 }): Promise<{ user: AuthUser }> {
@@ -293,6 +295,7 @@ export async function createTroop({
     spirit_animal: me.spirit_animal,
     quote: cleanQuote(me.quote),
     troop: t,
+    email: email?.trim(),
   };
   setCurrentUser(user);
   return { user };
