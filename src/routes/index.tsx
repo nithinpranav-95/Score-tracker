@@ -126,9 +126,27 @@ function loadActiveGameSession(troopName: string): ActiveSessionData | null {
   }
 }
 
+function checkIsScorekeeper(
+  session: ActiveSessionData | null,
+  currentUserId?: string,
+  authUserName?: string,
+): boolean {
+  if (!session) return false;
+  if (session.scorekeeperId && currentUserId && session.scorekeeperId === currentUserId) {
+    return true;
+  }
+  if (
+    session.scorekeeperName &&
+    authUserName &&
+    session.scorekeeperName.trim().toLowerCase() === authUserName.trim().toLowerCase()
+  ) {
+    return true;
+  }
+  return false;
+}
+
 async function loadActiveGameSessionCloud(troopName: string): Promise<ActiveSessionData | null> {
   if (!troopName) return null;
-  const local = loadActiveGameSession(troopName);
   try {
     const docId = getOngoingSessionDocId(troopName);
     const { data, error } = await supabase
@@ -137,26 +155,35 @@ async function loadActiveGameSessionCloud(troopName: string): Promise<ActiveSess
       .eq("id", docId)
       .maybeSingle();
 
-    if (!error && data) {
-      const resultsPayload = data.results as any;
-      if (resultsPayload && resultsPayload.game) {
-        const cloudData: ActiveSessionData = {
-          game: resultsPayload.game,
-          livePlayers: resultsPayload.livePlayers || [],
-          round: data.rounds || 1,
-          roundHistory: (data.rounds_data as Record<string, number>[]) || [],
-          scorekeeperId: resultsPayload.scorekeeperId,
-          scorekeeperName: resultsPayload.scorekeeperName,
-          isLocked: Boolean(resultsPayload.isLocked),
-        };
-        saveActiveGameSession(troopName, cloudData);
-        return cloudData;
-      }
+    if (error) {
+      console.debug("Failed to fetch active session from cloud:", error);
+      return loadActiveGameSession(troopName);
+    }
+
+    if (!data) {
+      // Cloud DB has no ongoing session for this troop. Clear local cache so stale ghost games don't linger on other browsers!
+      clearActiveGameSession(troopName);
+      return null;
+    }
+
+    const resultsPayload = data.results as any;
+    if (resultsPayload && resultsPayload.game) {
+      const cloudData: ActiveSessionData = {
+        game: resultsPayload.game,
+        livePlayers: resultsPayload.livePlayers || [],
+        round: data.rounds || 1,
+        roundHistory: (data.rounds_data as Record<string, number>[]) || [],
+        scorekeeperId: resultsPayload.scorekeeperId,
+        scorekeeperName: resultsPayload.scorekeeperName,
+        isLocked: Boolean(resultsPayload.isLocked),
+      };
+      saveActiveGameSession(troopName, cloudData);
+      return cloudData;
     }
   } catch (e) {
     console.debug("Failed to fetch active session from cloud:", e);
   }
-  return local;
+  return loadActiveGameSession(troopName);
 }
 
 function saveActiveGameSession(troopName: string, data: ActiveSessionData) {
@@ -851,13 +878,8 @@ function GameApp() {
 
     const currentId = currentPlayerId || authUser?.id;
     const currentName = authUser?.name || "Trooper";
-    const isLockedByOther = Boolean(
-      ongoingSession.isLocked &&
-      ongoingSession.scorekeeperId &&
-      ongoingSession.scorekeeperId !== currentId &&
-      ongoingSession.scorekeeperName &&
-      ongoingSession.scorekeeperName.toLowerCase() !== currentName.toLowerCase(),
-    );
+    const isScorekeeper = checkIsScorekeeper(ongoingSession, currentId, currentName);
+    const isLockedByOther = Boolean(ongoingSession.isLocked && !isScorekeeper);
 
     if (isLockedByOther) {
       alert(
@@ -2103,14 +2125,8 @@ function PlayView({
     return 0;
   });
 
-  const currentId = currentUserId || (authUserName ? authUserName.toLowerCase() : undefined);
-  const isLockedByOther = Boolean(
-    ongoingSession?.isLocked &&
-      ongoingSession?.scorekeeperId &&
-      ongoingSession.scorekeeperId !== currentId &&
-      ongoingSession.scorekeeperName &&
-      ongoingSession.scorekeeperName.toLowerCase() !== (authUserName || "").toLowerCase(),
-  );
+  const isScorekeeper = checkIsScorekeeper(ongoingSession || null, currentUserId, authUserName);
+  const isLockedByOther = Boolean(ongoingSession?.isLocked && !isScorekeeper);
 
   return (
     <>
