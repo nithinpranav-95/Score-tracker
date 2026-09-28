@@ -2149,47 +2149,29 @@ function LiveSession({
     setEntries({});
   };
 
-  // Projected totals = saved score + current unsaved entry
-  const projected = players.map((p) => ({
-    ...p,
-    projectedScore: p.score + (entries[p.id] ?? 0),
-  }));
-
-  // Sort by projected score for live ranking
-  const projectedSorted = [...projected].sort((a, b) =>
-    game.high_score_wins ? b.projectedScore - a.projectedScore : a.projectedScore - b.projectedScore,
-  );
-
-  // Compute tied projected ranks
-  const projectedRankById = new Map<string, number>();
-  let projRank = 1;
-  projectedSorted.forEach((p, i) => {
-    if (i > 0 && p.projectedScore === projectedSorted[i - 1].projectedScore) {
-      projectedRankById.set(p.id, projectedRankById.get(projectedSorted[i - 1].id)!);
-    } else {
-      projectedRankById.set(p.id, projRank);
-    }
-    projRank = i + 2;
-  });
-
-  // Display list ordered by projected rank so it re-sorts live
-  const displayList = [...projected].sort((a, b) =>
-    game.high_score_wins ? b.projectedScore - a.projectedScore : a.projectedScore - b.projectedScore,
-  );
-
-  // Static saved-score leader (for the header banner)
-  const savedSorted = [...players].sort((a, b) =>
+  // Static saved-score sort (cards never re-order while typing)
+  const sorted = [...players].sort((a, b) =>
     game.high_score_wins ? b.score - a.score : a.score - b.score,
   );
+  const rankById = new Map(sorted.map((p, i) => [p.id, i + 1]));
 
-  // Live projected leader
-  const projLeader = projectedSorted[0];
+  // Live chart data: projected total = saved + current entry, sorted for chart
+  const chartData = [...players]
+    .map((p) => ({
+      name: p.display_name,
+      emoji: animals[p.spirit_animal] ?? "🦊",
+      saved: p.score,
+      projected: p.score + (entries[p.id] ?? 0),
+    }))
+    .sort((a, b) =>
+      game.high_score_wins ? b.projected - a.projected : a.projected - b.projected,
+    );
 
   const benchPlayers = (allSquadPlayers ?? []).filter(
     (sp: Player) => !players.some((lp: LivePlayer) => lp.id === sp.id),
   );
-
   const hasAnyEntry = Object.values(entries).some((v) => v !== 0);
+  const leaderSaved = sorted[0];
 
   return (
     <main className="min-h-screen bg-background pb-28">
@@ -2213,30 +2195,74 @@ function LiveSession({
         </div>
       </header>
       <div className="mx-auto max-w-2xl px-4 py-5">
-        {/* Leader banner — shows projected leader while entries are in progress */}
+        {/* Leader banner — static, based on saved totals */}
         <div className="mb-5 flex items-center justify-between rounded-2xl bg-primary p-4 text-primary-foreground">
           <div>
-            <p className="text-xs font-bold">
-              {hasAnyEntry ? "PROJECTED LEADER" : "CURRENT LEADER"}
-            </p>
-            <p className="font-heading text-2xl font-bold">{projLeader?.display_name}</p>
+            <p className="text-xs font-bold">CURRENT LEADER</p>
+            <p className="font-heading text-2xl font-bold">{leaderSaved?.display_name}</p>
           </div>
           <div className="text-right">
             <span className="animal-bob inline-block text-3xl">
-              {animals[projLeader?.spirit_animal ?? ""]}
+              {animals[leaderSaved?.spirit_animal ?? ""]}
             </span>
-            <p className="text-3xl font-black tabular-nums">
-              {hasAnyEntry ? projLeader?.projectedScore : savedSorted[0]?.score}
-            </p>
+            <p className="text-3xl font-black tabular-nums">{leaderSaved?.score}</p>
           </div>
         </div>
+
+        {/* Live ranking chart — updates as scores are typed */}
+        <div className="mb-5 rounded-2xl border border-border bg-card p-4">
+          <p className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            {hasAnyEntry ? "Live Rankings (projected)" : "Current Rankings"}
+          </p>
+          <div className="space-y-2">
+            {chartData.map((item, i) => {
+              const maxScore = Math.max(...chartData.map((d) => d.projected), 1);
+              const pct = Math.max((item.projected / maxScore) * 100, 4);
+              const savedPct = Math.max((item.saved / maxScore) * 100, 4);
+              const isLeader = i === 0;
+              return (
+                <div key={item.name} className="flex items-center gap-2">
+                  <span className={`w-5 shrink-0 text-center text-xs font-black ${isLeader ? "text-primary" : "text-muted-foreground"}`}>
+                    {i + 1}
+                  </span>
+                  <span className="w-6 shrink-0 text-center text-base">{item.emoji}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-0.5 flex items-center justify-between">
+                      <span className="truncate text-xs font-bold">{item.name}</span>
+                      <span className="ml-2 shrink-0 text-xs font-black tabular-nums">
+                        {hasAnyEntry && item.projected !== item.saved ? (
+                          <span className="text-primary">{item.projected}</span>
+                        ) : (
+                          item.saved
+                        )}
+                      </span>
+                    </div>
+                    <div className="relative h-3 w-full overflow-hidden rounded-full bg-secondary">
+                      {/* Saved score bar */}
+                      <div
+                        className="absolute left-0 top-0 h-full rounded-full bg-muted-foreground/40 transition-all duration-300"
+                        style={{ width: `${savedPct}%` }}
+                      />
+                      {/* Projected score bar overlay */}
+                      <div
+                        className={`absolute left-0 top-0 h-full rounded-full transition-all duration-300 ${isLeader ? "bg-primary" : "bg-primary/50"}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="mb-3 flex items-center justify-between px-1">
           <h2 className="font-heading text-xl font-bold">Round {round} scores</h2>
           <p className="text-xs font-bold text-muted-foreground">ENTER THIS ROUND'S POINTS</p>
         </div>
         <div className="space-y-3">
-          {displayList.map((p) => {
-            const rank = projectedRankById.get(p.id);
+          {sorted.map((p: LivePlayer) => {
+            const rank = rankById.get(p.id);
             const entry = entries[p.id] ?? 0;
             return (
               <div
@@ -2245,7 +2271,7 @@ function LiveSession({
               >
                 <span
                   aria-label={`Rank ${rank}`}
-                  className={`grid size-10 place-items-center rounded-xl font-black transition-colors ${rank === 1 ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}
+                  className={`grid size-10 place-items-center rounded-xl font-black ${rank === 1 ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}
                 >
                   {rank}
                 </span>
@@ -2255,16 +2281,12 @@ function LiveSession({
                 <div className="min-w-0">
                   <p className="truncate font-heading text-lg font-bold">{p.display_name}</p>
                   <p className="text-xs font-bold text-muted-foreground tabular-nums">
-                    {entry !== 0 ? (
-                      <>
-                        <span>{p.score}</span>
-                        <span className="text-primary">
-                          {" "}{entry > 0 ? `+${entry}` : entry} →{" "}
-                          <span className="text-base font-black text-foreground">{p.projectedScore}</span>
-                        </span>
-                      </>
-                    ) : (
-                      <span>Total {p.score}</span>
+                    Total {p.score}
+                    {entry !== 0 && (
+                      <span className="text-primary">
+                        {" "}
+                        {entry > 0 ? `+${entry}` : entry} → {p.score + entry}
+                      </span>
                     )}
                   </p>
                 </div>
