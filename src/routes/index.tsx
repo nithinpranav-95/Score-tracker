@@ -741,6 +741,14 @@ function GameApp() {
     );
     setEditingSession(null);
   }
+
+  const [deletingSession, setDeletingSession] = useState<PastSession | null>(null);
+  async function handleDeleteSession(sessionId: string) {
+    const { error } = await supabase.from("game_results").delete().eq("id", sessionId);
+    if (error) console.debug("Failed to delete game result:", error);
+    setSessions((list) => list.filter((s) => s.id !== sessionId));
+    setDeletingSession(null);
+  }
   const nav = [
     { id: "play", icon: Gamepad2, label: "Play" },
     { id: "players", icon: Users, label: "Players" },
@@ -793,6 +801,15 @@ function GameApp() {
           session={editingSession}
           close={() => setEditingSession(null)}
           save={handleUpdateSession}
+        />
+      )}
+      {deletingSession && (
+        <DeleteSessionModal
+          session={deletingSession}
+          close={() => setDeletingSession(null)}
+          onConfirmDelete={handleDeleteSession}
+          userEmail={authUser?.email}
+          onSaveUserEmail={handleSaveUserEmail}
         />
       )}
       <header className="relative z-20 border-b border-border/80 bg-background/80 backdrop-blur-md">
@@ -975,6 +992,7 @@ function GameApp() {
           <HistoryView
             sessions={sessions}
             onEdit={setEditingSession}
+            onDelete={setDeletingSession}
             isSignedUp={Boolean(authUser && authUser.email)}
             onRequireEmail={() => setShowEmailPrompt(true)}
           />
@@ -3012,11 +3030,13 @@ function CustomStatsTooltip({
 function HistoryView({
   sessions,
   onEdit,
+  onDelete,
   isSignedUp,
   onRequireEmail,
 }: {
   sessions: PastSession[];
   onEdit: (s: PastSession) => void;
+  onDelete: (s: PastSession) => void;
   isSignedUp: boolean;
   onRequireEmail?: () => void;
 }) {
@@ -3050,30 +3070,61 @@ function HistoryView({
                 <p className="text-sm text-muted-foreground">{x.d}</p>
               </div>
               <p className="font-bold text-primary">{x.s}</p>
-              {isSignedUp ? (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Edit ${x.g} scores`}
-                  onClick={() => {
-                    const s = sessions.find((y) => y.id === x.key);
-                    if (s) onEdit(s);
-                  }}
-                >
-                  <Pencil className="size-4" />
-                </Button>
-              ) : onRequireEmail ? (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  title="Sign up with email to edit session history"
-                  aria-label={`Sign up to edit ${x.g} scores`}
-                  onClick={onRequireEmail}
-                  className="opacity-70 hover:opacity-100"
-                >
-                  <Pencil className="size-4 text-muted-foreground" />
-                </Button>
-              ) : null}
+              <div className="flex items-center gap-1">
+                {isSignedUp ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Edit ${x.g} scores`}
+                      onClick={() => {
+                        const s = sessions.find((y) => y.id === x.key);
+                        if (s) onEdit(s);
+                      }}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Delete ${x.g} session`}
+                      onClick={() => {
+                        const s = sessions.find((y) => y.id === x.key);
+                        if (s) onDelete(s);
+                      }}
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Sign up with email to edit session history"
+                      aria-label={`Sign up to edit ${x.g} scores`}
+                      onClick={onRequireEmail}
+                      className="opacity-70 hover:opacity-100"
+                    >
+                      <Pencil className="size-4 text-muted-foreground" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Remove session from history"
+                      aria-label={`Delete ${x.g} session`}
+                      onClick={() => {
+                        const s = sessions.find((y) => y.id === x.key);
+                        if (s) onDelete(s);
+                      }}
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -3154,6 +3205,131 @@ function EditSessionModal({
         >
           Save changes
         </Button>
+      </div>
+    </div>
+  );
+}
+
+function DeleteSessionModal({
+  session,
+  close,
+  onConfirmDelete,
+  userEmail,
+  onSaveUserEmail,
+}: {
+  session: PastSession;
+  close: () => void;
+  onConfirmDelete: (sessionId: string) => Promise<void> | void;
+  userEmail?: string;
+  onSaveUserEmail?: (email: string) => void;
+}) {
+  const [emailInput, setEmailInput] = useState(userEmail || "");
+  const [confirmText, setConfirmText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isValidEmailFormat = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
+
+  // Must match user email if set, or be a valid email format
+  const isEmailValid = userEmail
+    ? emailInput.trim().toLowerCase() === userEmail.trim().toLowerCase()
+    : isValidEmailFormat(emailInput);
+
+  const isConfirmValid = confirmText === "DELETE";
+  const canDelete = isEmailValid && isConfirmValid && !isDeleting;
+
+  async function handleDelete() {
+    if (!canDelete) return;
+    setIsDeleting(true);
+    setError(null);
+    try {
+      if (!userEmail && onSaveUserEmail && isValidEmailFormat(emailInput)) {
+        onSaveUserEmail(emailInput.trim());
+      }
+      await onConfirmDelete(session.id);
+      close();
+    } catch (e: any) {
+      console.error("Failed to delete session:", e);
+      setError("Failed to delete game session. Please try again.");
+      setIsDeleting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-end bg-background/80 p-4 backdrop-blur-sm sm:place-items-center">
+      <div className="w-full max-w-md rounded-[1.5rem] border border-border bg-card p-6 shadow-2xl">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-destructive">
+            <Trash2 className="size-5" />
+            <h2 className="font-heading text-xl font-bold">Delete Game Session?</h2>
+          </div>
+          <Button onClick={close} variant="ghost" size="icon" aria-label="Close">
+            <X className="size-4" />
+          </Button>
+        </div>
+
+        <p className="mt-3 text-sm text-muted-foreground">
+          Are you sure you want to delete this session of{" "}
+          <strong className="text-foreground">{session.gameName}</strong> played on{" "}
+          <strong className="text-foreground">{session.date}</strong>?
+        </p>
+
+        <div className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs font-medium text-destructive">
+          ⚠️ This will completely remove all points scored in this game for all{" "}
+          <strong>{session.results.length} players</strong> involved. Ranks and stats will automatically recalculate.
+        </div>
+
+        {error && (
+          <div className="mt-3 rounded-xl bg-destructive/15 p-3 text-xs font-bold text-destructive">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-5 space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              1. Enter your email address:
+            </label>
+            <input
+              type="email"
+              placeholder="e.g. yourname@email.com"
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              className="h-11 w-full rounded-xl border border-border bg-secondary px-3 text-sm font-bold text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+            {userEmail && emailInput && !isEmailValid && (
+              <p className="mt-1 text-[11px] font-bold text-destructive">
+                Must match your registered email ({userEmail})
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              2. Type &quot;DELETE&quot; to confirm:
+            </label>
+            <input
+              type="text"
+              placeholder="DELETE"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              className="h-11 w-full rounded-xl border border-border bg-secondary px-3 text-sm font-bold text-foreground outline-none focus:border-destructive focus:ring-2 focus:ring-destructive/20"
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 flex items-center justify-end gap-3">
+          <Button variant="outline" onClick={close} className="rounded-xl font-bold">
+            Cancel
+          </Button>
+          <Button
+            disabled={!canDelete}
+            onClick={handleDelete}
+            className="rounded-xl bg-destructive font-bold text-destructive-foreground hover:bg-destructive/90 disabled:opacity-40"
+          >
+            {isDeleting ? "Deleting..." : "Delete Game"}
+          </Button>
+        </div>
       </div>
     </div>
   );
