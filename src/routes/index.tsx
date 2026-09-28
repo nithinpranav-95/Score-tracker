@@ -700,6 +700,23 @@ function GameApp() {
 
   function handleSelectGame(game: Game) {
     if (ongoingSession) {
+      const currentId = currentPlayerId || authUser?.id;
+      const currentName = authUser?.name || "Trooper";
+      const isLockedByOther = Boolean(
+        ongoingSession.isLocked &&
+          ongoingSession.scorekeeperId &&
+          ongoingSession.scorekeeperId !== currentId &&
+          ongoingSession.scorekeeperName &&
+          ongoingSession.scorekeeperName.toLowerCase() !== currentName.toLowerCase(),
+      );
+
+      if (ongoingSession.isLocked && isLockedByOther) {
+        alert(
+          `Scoring is currently in progress by ${ongoingSession.scorekeeperName || "another player"}. Only ${ongoingSession.scorekeeperName || "the scorekeeper"} can discard or finish this game right now.`,
+        );
+        return;
+      }
+
       if (
         window.confirm(
           `You have an ongoing ${ongoingSession.game.name} game (Round ${ongoingSession.round}) in progress.\n\nDo you want to discard it to start a new game of ${game.name}?`,
@@ -715,6 +732,23 @@ function GameApp() {
 
   function handleOpenNewGame() {
     if (ongoingSession) {
+      const currentId = currentPlayerId || authUser?.id;
+      const currentName = authUser?.name || "Trooper";
+      const isLockedByOther = Boolean(
+        ongoingSession.isLocked &&
+          ongoingSession.scorekeeperId &&
+          ongoingSession.scorekeeperId !== currentId &&
+          ongoingSession.scorekeeperName &&
+          ongoingSession.scorekeeperName.toLowerCase() !== currentName.toLowerCase(),
+      );
+
+      if (ongoingSession.isLocked && isLockedByOther) {
+        alert(
+          `Scoring is currently in progress by ${ongoingSession.scorekeeperName || "another player"}. Only ${ongoingSession.scorekeeperName || "the scorekeeper"} can discard or finish this game right now.`,
+        );
+        return;
+      }
+
       if (
         window.confirm(
           `You have an ongoing ${ongoingSession.game.name} game (Round ${ongoingSession.round}) in progress.\n\nDo you want to discard it to create a new game?`,
@@ -850,9 +884,28 @@ function GameApp() {
   }
 
   function handleDiscardOngoingGame() {
+    if (!ongoingSession) return;
+
+    const currentId = currentPlayerId || authUser?.id;
+    const currentName = authUser?.name || "Trooper";
+    const isLockedByOther = Boolean(
+      ongoingSession.isLocked &&
+        ongoingSession.scorekeeperId &&
+        ongoingSession.scorekeeperId !== currentId &&
+        ongoingSession.scorekeeperName &&
+        ongoingSession.scorekeeperName.toLowerCase() !== currentName.toLowerCase(),
+    );
+
+    if (ongoingSession.isLocked && isLockedByOther) {
+      alert(
+        `Only the active scorekeeper (${ongoingSession.scorekeeperName || "the scorekeeper"}) can discard an ongoing game while scoring is in progress.`,
+      );
+      return;
+    }
+
     if (
       window.confirm(
-        `Discard the ongoing ${ongoingSession?.game.name ?? "game"} from round ${ongoingSession?.round ?? 1}? Unsaved progress will be lost.`,
+        `Discard the ${ongoingSession.isLocked ? "ongoing" : "saved"} ${ongoingSession.game.name} game from round ${ongoingSession.round}? All progress will be lost.`,
       )
     ) {
       removeActiveSession();
@@ -2102,7 +2155,7 @@ function PlayView({
                     Continue with round {ongoingSession.round}
                   </Button>
                 )}
-                {onDiscardOngoing && (
+                {onDiscardOngoing && (!ongoingSession.isLocked || !isLockedByOther) && (
                   <Button
                     variant="outline"
                     onClick={onDiscardOngoing}
