@@ -482,9 +482,10 @@ function GameApp() {
   async function handleAddPlayer(name: string, animal: string, quote?: string) {
     const defaultQuote = spiritAnimals[animal]?.defaultQuote || "Bold & fearless";
     const finalQuote = quote?.trim() || defaultQuote;
+    const currentTroop = authUser?.troop ?? TROOP_NAME;
     const { data, error } = await supabase
       .from("players")
-      .insert({ name, spirit_animal: animal, quote: finalQuote })
+      .insert({ name, spirit_animal: animal, quote: finalQuote, troop: currentTroop })
       .select()
       .single();
     const newP: Player = data
@@ -841,6 +842,7 @@ function GameApp() {
             start={handleSelectGame}
             openNew={() => setNewGame(true)}
             openPlayer={setProfileId}
+            openAddPlayer={() => setAddPlayer(true)}
             openCreateTroop={() => setShowCreateTroop(true)}
             goToPlayers={() => setTab("players")}
           />
@@ -1573,6 +1575,7 @@ function PlayView({
   start,
   openNew,
   openPlayer,
+  openAddPlayer,
   openCreateTroop,
   goToPlayers,
 }: {
@@ -1581,6 +1584,7 @@ function PlayView({
   start: (g: Game) => void;
   openNew: () => void;
   openPlayer: (id: string) => void;
+  openAddPlayer?: () => void;
   openCreateTroop?: () => void;
   goToPlayers?: () => void;
 }) {
@@ -1689,16 +1693,24 @@ function PlayView({
               );
             })}
 
-            {goToPlayers && (
-              <div className="pt-1">
+            <div className="flex flex-col gap-2 pt-1 sm:flex-row">
+              {openAddPlayer && (
+                <button
+                  onClick={openAddPlayer}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/40 bg-card/60 p-3.5 text-center font-bold text-primary transition hover:border-primary hover:bg-secondary/60"
+                >
+                  <Plus className="size-4" /> Add Troopers to Troop
+                </button>
+              )}
+              {goToPlayers && (
                 <button
                   onClick={goToPlayers}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-secondary/60 px-5 py-3.5 text-center text-xs font-bold text-foreground transition hover:border-primary hover:bg-secondary"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-secondary/60 p-3.5 text-center text-xs font-bold text-foreground transition hover:border-primary hover:bg-secondary"
                 >
                   <Users className="size-4 text-primary" /> View all friend profiles
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
       </section>
