@@ -98,6 +98,43 @@ type PastSession = {
   roundsData: Record<string, number>[];
 };
 
+const ACTIVE_SESSION_PREFIX = "scoreup_ongoing_game_";
+
+type ActiveSessionData = {
+  game: Game;
+  livePlayers: LivePlayer[];
+  round: number;
+  roundHistory: Record<string, number>[];
+};
+
+function loadActiveGameSession(troopName: string): ActiveSessionData | null {
+  if (typeof window === "undefined" || !troopName) return null;
+  try {
+    const raw = localStorage.getItem(ACTIVE_SESSION_PREFIX + troopName.toLowerCase());
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveActiveGameSession(troopName: string, data: ActiveSessionData) {
+  if (typeof window === "undefined" || !troopName) return;
+  try {
+    localStorage.setItem(ACTIVE_SESSION_PREFIX + troopName.toLowerCase(), JSON.stringify(data));
+  } catch (e) {
+    console.debug("Failed to save active session:", e);
+  }
+}
+
+function clearActiveGameSession(troopName: string) {
+  if (typeof window === "undefined" || !troopName) return;
+  try {
+    localStorage.removeItem(ACTIVE_SESSION_PREFIX + troopName.toLowerCase());
+  } catch (e) {
+    console.debug("Failed to clear active session:", e);
+  }
+}
+
 type AnimalInfo = {
   emoji: string;
   title: string;
@@ -326,6 +363,7 @@ function GameApp() {
   const [changePasswordTarget, setChangePasswordTarget] = useState<Player | null>(null);
 
   const [hydrated, setHydrated] = useState(false);
+  const [ongoingSession, setOngoingSession] = useState<ActiveSessionData | null>(null);
 
   // Restore ongoing game session for active troop when player visits/logs in
   useEffect(() => {
@@ -333,7 +371,7 @@ function GameApp() {
     const currentTroop = authUser.troop ?? TROOP_NAME;
     const activeData = loadActiveGameSession(currentTroop);
     if (activeData && activeData.game) {
-      setLiveGame(activeData.game);
+      setOngoingSession(activeData);
       setLivePlayers(activeData.livePlayers || []);
       setRound(activeData.round || 1);
       setRoundHistory(activeData.roundHistory || []);
@@ -621,6 +659,38 @@ function GameApp() {
   }
 
   const [roundHistory, setRoundHistory] = useState<Record<string, number>[]>([]);
+
+  function persistActiveSession(data: ActiveSessionData) {
+    const currentTroop = authUser?.troop ?? TROOP_NAME;
+    saveActiveGameSession(currentTroop, data);
+    setOngoingSession(data);
+  }
+
+  function removeActiveSession() {
+    const currentTroop = authUser?.troop ?? TROOP_NAME;
+    clearActiveGameSession(currentTroop);
+    setOngoingSession(null);
+  }
+
+  function handleResumeOngoingGame() {
+    if (ongoingSession && ongoingSession.game) {
+      setLiveGame(ongoingSession.game);
+      setLivePlayers(ongoingSession.livePlayers || []);
+      setRound(ongoingSession.round || 1);
+      setRoundHistory(ongoingSession.roundHistory || []);
+    }
+  }
+
+  function handleDiscardOngoingGame() {
+    if (
+      window.confirm(
+        `Discard the ongoing ${ongoingSession?.game.name ?? "game"} from round ${ongoingSession?.round ?? 1}? Unsaved progress will be lost.`,
+      )
+    ) {
+      removeActiveSession();
+    }
+  }
+
   function startSessionWithPlayers(game: Game, selectedPlayers: Player[]) {
     const initialLive = selectedPlayers.map((p) => ({ ...p, score: 0 }));
     setLiveGame(game);
@@ -629,8 +699,7 @@ function GameApp() {
     setRoundHistory([]);
     setSetupGame(null);
 
-    const currentTroop = authUser?.troop ?? TROOP_NAME;
-    saveActiveGameSession(currentTroop, {
+    persistActiveSession({
       game,
       livePlayers: initialLive,
       round: 1,
@@ -642,9 +711,8 @@ function GameApp() {
     setLivePlayers((list) => {
       if (list.some((p) => p.id === player.id)) return list;
       const updated = [...list, { ...player, score: 0 }];
-      const currentTroop = authUser?.troop ?? TROOP_NAME;
       if (liveGame) {
-        saveActiveGameSession(currentTroop, {
+        persistActiveSession({
           game: liveGame,
           livePlayers: updated,
           round,
@@ -660,9 +728,8 @@ function GameApp() {
       const updatedPlayers = list.map((p) => ({ ...p, score: p.score + (entries[p.id] ?? 0) }));
       const updatedHistory = [...roundHistory, entries];
       const updatedRound = round + 1;
-      const currentTroop = authUser?.troop ?? TROOP_NAME;
       if (liveGame) {
-        saveActiveGameSession(currentTroop, {
+        persistActiveSession({
           game: liveGame,
           livePlayers: updatedPlayers,
           round: updatedRound,
@@ -676,8 +743,7 @@ function GameApp() {
   }
 
   async function endGame() {
-    const currentTroop = authUser?.troop ?? TROOP_NAME;
-    clearActiveGameSession(currentTroop);
+    removeActiveSession();
     if (liveGame) {
       const ordered = [...livePlayers].sort((a, b) =>
         liveGame.high_score_wins ? b.score - a.score : a.score - b.score,
@@ -974,6 +1040,9 @@ function GameApp() {
             goToPlayers={() => setTab("players")}
             currentUserId={currentPlayerId}
             authUserName={authUser?.name}
+            ongoingSession={ongoingSession}
+            onResumeOngoing={handleResumeOngoingGame}
+            onDiscardOngoing={handleDiscardOngoingGame}
           />
         )}
         {tab === "players" && (
@@ -1757,6 +1826,9 @@ function PlayView({
   goToPlayers,
   currentUserId,
   authUserName,
+  ongoingSession,
+  onResumeOngoing,
+  onDiscardOngoing,
 }: {
   games: Game[];
   players: Player[];
@@ -1768,6 +1840,9 @@ function PlayView({
   goToPlayers?: () => void;
   currentUserId?: string;
   authUserName?: string;
+  ongoingSession?: ActiveSessionData | null;
+  onResumeOngoing?: () => void;
+  onDiscardOngoing?: () => void;
 }) {
   const sortedPlayers = [...players].sort((a, b) => {
     const aIsMe =
@@ -1781,8 +1856,61 @@ function PlayView({
     return 0;
   });
 
+  const leaderPlayer = ongoingSession?.livePlayers
+    ? [...ongoingSession.livePlayers].sort((a, b) =>
+        ongoingSession.game.high_score_wins ? b.score - a.score : a.score - b.score,
+      )[0]
+    : null;
+
   return (
     <>
+      {ongoingSession && ongoingSession.game && (
+        <section className="mb-8">
+          <div className="relative overflow-hidden rounded-[1.75rem] border border-primary/40 bg-gradient-to-br from-primary/20 via-primary/10 to-card p-6 shadow-xl backdrop-blur">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-1.5">
+                <div className="inline-flex items-center gap-2 rounded-full bg-primary/20 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-primary">
+                  <span className="inline-block size-2 animate-pulse rounded-full bg-primary" />
+                  Game Saved &amp; Ongoing
+                </div>
+                <h2 className="font-heading text-2xl font-bold text-foreground sm:text-3xl">
+                  Continue the {ongoingSession.game.name} game from round {ongoingSession.round}
+                </h2>
+                <p className="text-sm font-medium text-muted-foreground">
+                  {ongoingSession.livePlayers?.length ?? 0} players · Round {ongoingSession.round}
+                  {leaderPlayer && (
+                    <>
+                      {" · Leader: "}
+                      <span className="font-bold text-foreground">
+                        {leaderPlayer.display_name} ({leaderPlayer.score} pts)
+                      </span>
+                    </>
+                  )}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  onClick={onResumeOngoing}
+                  className="h-12 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground shadow-lg hover:brightness-110 active:scale-95"
+                >
+                  <Play className="mr-2 size-4 fill-current" />
+                  Continue Round {ongoingSession.round}
+                </Button>
+                {onDiscardOngoing && (
+                  <Button
+                    variant="outline"
+                    onClick={onDiscardOngoing}
+                    className="h-12 rounded-xl border-border text-xs font-bold text-muted-foreground hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    Discard Game
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
       <section>
         <h2 className="font-heading text-3xl font-bold">Start a game</h2>
         <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -3638,42 +3766,7 @@ function CreateTroopModal({
   );
 }
 
-const ACTIVE_SESSION_PREFIX = "scoreup_ongoing_game_";
 
-type ActiveSessionData = {
-  game: Game;
-  livePlayers: LivePlayer[];
-  round: number;
-  roundHistory: Record<string, number>[];
-};
-
-function loadActiveGameSession(troopName: string): ActiveSessionData | null {
-  if (typeof window === "undefined" || !troopName) return null;
-  try {
-    const raw = localStorage.getItem(ACTIVE_SESSION_PREFIX + troopName.toLowerCase());
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveActiveGameSession(troopName: string, data: ActiveSessionData) {
-  if (typeof window === "undefined" || !troopName) return;
-  try {
-    localStorage.setItem(ACTIVE_SESSION_PREFIX + troopName.toLowerCase(), JSON.stringify(data));
-  } catch (e) {
-    console.debug("Failed to save active session:", e);
-  }
-}
-
-function clearActiveGameSession(troopName: string) {
-  if (typeof window === "undefined" || !troopName) return;
-  try {
-    localStorage.removeItem(ACTIVE_SESSION_PREFIX + troopName.toLowerCase());
-  } catch (e) {
-    console.debug("Failed to clear active session:", e);
-  }
-}
 
 function EmailRequiredModal({
   close,
