@@ -111,6 +111,11 @@ type ActiveSessionData = {
   isLocked?: boolean;
 };
 
+function getOngoingSessionDocId(troopName: string): string {
+  const clean = (troopName || TROOP_NAME).toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+  return `ongoing_session_${clean}`;
+}
+
 function loadActiveGameSession(troopName: string): ActiveSessionData | null {
   if (typeof window === "undefined" || !troopName) return null;
   try {
@@ -119,6 +124,39 @@ function loadActiveGameSession(troopName: string): ActiveSessionData | null {
   } catch {
     return null;
   }
+}
+
+async function loadActiveGameSessionCloud(troopName: string): Promise<ActiveSessionData | null> {
+  if (!troopName) return null;
+  const local = loadActiveGameSession(troopName);
+  try {
+    const docId = getOngoingSessionDocId(troopName);
+    const { data, error } = await supabase
+      .from("game_results")
+      .select("*")
+      .eq("id", docId)
+      .maybeSingle();
+
+    if (!error && data) {
+      const resultsPayload = data.results as any;
+      if (resultsPayload && resultsPayload.game) {
+        const cloudData: ActiveSessionData = {
+          game: resultsPayload.game,
+          livePlayers: resultsPayload.livePlayers || [],
+          round: data.rounds || 1,
+          roundHistory: (data.rounds_data as Record<string, number>[]) || [],
+          scorekeeperId: resultsPayload.scorekeeperId,
+          scorekeeperName: resultsPayload.scorekeeperName,
+          isLocked: Boolean(resultsPayload.isLocked),
+        };
+        saveActiveGameSession(troopName, cloudData);
+        return cloudData;
+      }
+    }
+  } catch (e) {
+    console.debug("Failed to fetch active session from cloud:", e);
+  }
+  return local;
 }
 
 function saveActiveGameSession(troopName: string, data: ActiveSessionData) {
@@ -132,6 +170,34 @@ function saveActiveGameSession(troopName: string, data: ActiveSessionData) {
   }
 }
 
+async function saveActiveGameSessionCloud(troopName: string, data: ActiveSessionData) {
+  if (!troopName || !data || !data.game) return;
+  saveActiveGameSession(troopName, data);
+  try {
+    const docId = getOngoingSessionDocId(troopName);
+    const resultsPayload = {
+      game: data.game,
+      livePlayers: data.livePlayers,
+      scorekeeperId: data.scorekeeperId,
+      scorekeeperName: data.scorekeeperName,
+      isLocked: data.isLocked ?? false,
+    };
+
+    const { error } = await supabase.from("game_results").upsert({
+      id: docId,
+      game_name: data.game.name,
+      rounds: data.round,
+      results: resultsPayload as any,
+      rounds_data: data.roundHistory as any,
+      played_at: new Date().toISOString(),
+    });
+
+    if (error) console.debug("Failed to sync ongoing game session to cloud:", error);
+  } catch (e) {
+    console.debug("Failed to sync ongoing game session:", e);
+  }
+}
+
 function clearActiveGameSession(troopName: string) {
   if (typeof window === "undefined" || !troopName) return;
   try {
@@ -140,6 +206,17 @@ function clearActiveGameSession(troopName: string) {
     window.dispatchEvent(new CustomEvent("scoreup_session_changed", { detail: { troopName, data: null } }));
   } catch (e) {
     console.debug("Failed to clear active session:", e);
+  }
+}
+
+async function clearActiveGameSessionCloud(troopName: string) {
+  if (!troopName) return;
+  clearActiveGameSession(troopName);
+  try {
+    const docId = getOngoingSessionDocId(troopName);
+    await supabase.from("game_results").delete().eq("id", docId);
+  } catch (e) {
+    console.debug("Failed to clear cloud ongoing session:", e);
   }
 }
 
@@ -377,8 +454,11 @@ function GameApp() {
   useEffect(() => {
     if (!authUser || !hydrated) return;
     const currentTroop = authUser.troop ?? TROOP_NAME;
-    function syncOngoingSession() {
-      const activeData = loadActiveGameSession(currentTroop);
+    let isCancelled = false;
+
+    async function syncOngoingSession() {
+      const activeData = await loadActiveGameSessionCloud(currentTroop);
+      if (isCancelled) return;
       setOngoingSession(activeData);
       if (activeData && activeData.game) {
         setLivePlayers(activeData.livePlayers || []);
@@ -387,11 +467,23 @@ function GameApp() {
       }
     }
     syncOngoingSession();
-    window.addEventListener("scoreup_session_changed", syncOngoingSession);
-    window.addEventListener("storage", syncOngoingSession);
+
+    function handleLocalSync() {
+      const activeData = loadActiveGameSession(currentTroop);
+      setOngoingSession(activeData);
+      if (activeData && activeData.game) {
+        setLivePlayers(activeData.livePlayers || []);
+        setRound(activeData.round || 1);
+        setRoundHistory(activeData.roundHistory || []);
+      }
+    }
+
+    window.addEventListener("scoreup_session_changed", handleLocalSync);
+    window.addEventListener("storage", handleLocalSync);
     return () => {
-      window.removeEventListener("scoreup_session_changed", syncOngoingSession);
-      window.removeEventListener("storage", syncOngoingSession);
+      isCancelled = true;
+      window.removeEventListener("scoreup_session_changed", handleLocalSync);
+      window.removeEventListener("storage", handleLocalSync);
     };
   }, [authUser, hydrated]);
 
@@ -447,7 +539,10 @@ function GameApp() {
         }
 
         if (resultsRes.data && resultsRes.data.length > 0) {
-          cloudSessions = resultsRes.data.map((r) => ({
+          const finishedResults = resultsRes.data.filter(
+            (r) => !r.id.startsWith("ongoing_session_"),
+          );
+          cloudSessions = finishedResults.map((r) => ({
             id: r.id,
             gameName: r.game_name,
             date: new Date(r.played_at).toLocaleDateString(undefined, {
@@ -705,13 +800,13 @@ function GameApp() {
 
   function persistActiveSession(data: ActiveSessionData) {
     const currentTroop = authUser?.troop ?? TROOP_NAME;
-    saveActiveGameSession(currentTroop, data);
+    saveActiveGameSessionCloud(currentTroop, data);
     setOngoingSession(data);
   }
 
   function removeActiveSession() {
     const currentTroop = authUser?.troop ?? TROOP_NAME;
-    clearActiveGameSession(currentTroop);
+    clearActiveGameSessionCloud(currentTroop);
     setOngoingSession(null);
   }
 
