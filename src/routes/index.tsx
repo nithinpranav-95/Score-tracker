@@ -2155,23 +2155,30 @@ function LiveSession({
   );
   const rankById = new Map(sorted.map((p, i) => [p.id, i + 1]));
 
-  // Live chart data: projected total = saved + current entry, sorted for chart
+  // Chart uses ONLY saved scores — updates only after "Save Round" is pressed
   const chartData = [...players]
     .map((p) => ({
       name: p.display_name,
       emoji: animals[p.spirit_animal] ?? "🦊",
-      saved: p.score,
-      projected: p.score + (entries[p.id] ?? 0),
+      score: p.score,
     }))
     .sort((a, b) =>
-      game.high_score_wins ? b.projected - a.projected : a.projected - b.projected,
+      game.high_score_wins ? b.score - a.score : a.score - b.score,
     );
 
   const benchPlayers = (allSquadPlayers ?? []).filter(
     (sp: Player) => !players.some((lp: LivePlayer) => lp.id === sp.id),
   );
-  const hasAnyEntry = Object.values(entries).some((v) => v !== 0);
   const leaderSaved = sorted[0];
+
+  // Live averages per player: saved total + current unsaved entry
+  const liveAverages = players.map((p) => ({
+    ...p,
+    liveTotal: p.score + (entries[p.id] ?? 0),
+  }));
+  const grandLiveTotal = liveAverages.reduce((sum, p) => sum + p.liveTotal, 0);
+  const liveAvg = players.length > 0 ? (grandLiveTotal / players.length).toFixed(1) : "0.0";
+  const hasAnyEntry = Object.values(entries).some((v) => v !== 0);
 
   return (
     <main className="min-h-screen bg-background pb-28">
@@ -2209,16 +2216,15 @@ function LiveSession({
           </div>
         </div>
 
-        {/* Live ranking chart — updates as scores are typed */}
+        {/* Ranking chart — only reflects saved scores, updates after each saved round */}
         <div className="mb-5 rounded-2xl border border-border bg-card p-4">
           <p className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            {hasAnyEntry ? "Live Rankings (projected)" : "Current Rankings"}
+            Rankings after round {round - 1 > 0 ? round - 1 : "—"}
           </p>
           <div className="space-y-2">
             {chartData.map((item, i) => {
-              const maxScore = Math.max(...chartData.map((d) => d.projected), 1);
-              const pct = Math.max((item.projected / maxScore) * 100, 4);
-              const savedPct = Math.max((item.saved / maxScore) * 100, 4);
+              const maxScore = Math.max(...chartData.map((d) => d.score), 1);
+              const pct = Math.max((item.score / maxScore) * 100, 4);
               const isLeader = i === 0;
               return (
                 <div key={item.name} className="flex items-center gap-2">
@@ -2229,23 +2235,11 @@ function LiveSession({
                   <div className="min-w-0 flex-1">
                     <div className="mb-0.5 flex items-center justify-between">
                       <span className="truncate text-xs font-bold">{item.name}</span>
-                      <span className="ml-2 shrink-0 text-xs font-black tabular-nums">
-                        {hasAnyEntry && item.projected !== item.saved ? (
-                          <span className="text-primary">{item.projected}</span>
-                        ) : (
-                          item.saved
-                        )}
-                      </span>
+                      <span className="ml-2 shrink-0 text-xs font-black tabular-nums">{item.score}</span>
                     </div>
                     <div className="relative h-3 w-full overflow-hidden rounded-full bg-secondary">
-                      {/* Saved score bar */}
                       <div
-                        className="absolute left-0 top-0 h-full rounded-full bg-muted-foreground/40 transition-all duration-300"
-                        style={{ width: `${savedPct}%` }}
-                      />
-                      {/* Projected score bar overlay */}
-                      <div
-                        className={`absolute left-0 top-0 h-full rounded-full transition-all duration-300 ${isLeader ? "bg-primary" : "bg-primary/50"}`}
+                        className={`absolute left-0 top-0 h-full rounded-full transition-all duration-500 ${isLeader ? "bg-primary" : "bg-primary/50"}`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -2324,6 +2318,28 @@ function LiveSession({
             );
           })}
         </div>
+
+        {/* Live average points box — updates as values are typed */}
+        <div className="mt-5 grid grid-cols-3 gap-3">
+          {liveAverages
+            .sort((a, b) => (game.high_score_wins ? b.liveTotal - a.liveTotal : a.liveTotal - b.liveTotal))
+            .map((p, i) => (
+              <div key={p.id} className={`rounded-2xl border p-3 text-center ${i === 0 ? "border-primary/40 bg-primary/10" : "border-border bg-card"}`}>
+                <p className="text-lg">{animals[p.spirit_animal] ?? "🦊"}</p>
+                <p className="truncate text-xs font-bold">{p.display_name}</p>
+                <p className={`text-lg font-black tabular-nums ${hasAnyEntry && entries[p.id] ? "text-primary" : "text-foreground"}`}>
+                  {p.liveTotal}
+                </p>
+                <p className="text-[10px] text-muted-foreground">live pts</p>
+              </div>
+            ))}
+        </div>
+        <div className="mt-2 rounded-xl bg-secondary px-4 py-2 text-center">
+          <span className="text-xs font-bold text-muted-foreground">Group avg: </span>
+          <span className="text-sm font-black tabular-nums">{liveAvg}</span>
+          {hasAnyEntry && <span className="ml-1 text-xs text-primary">(live)</span>}
+        </div>
+
         {benchPlayers.length > 0 && onAddBenchPlayer && (
           <div className="mt-6 rounded-2xl border border-dashed border-border bg-card/50 p-4">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
