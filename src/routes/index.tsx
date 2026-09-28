@@ -693,7 +693,7 @@ function GameApp() {
               <p className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
                 {authUser ? `Trooper · ${authUser.name}` : "Game Night"}
               </p>
-              <h1 className="font-heading text-xl font-bold leading-tight">{TROOP_NAME}</h1>
+              <h1 className="font-heading text-xl font-bold leading-tight">{authUser?.troop ?? TROOP_NAME}</h1>
             </div>
           </button>
 
@@ -771,22 +771,6 @@ function GameApp() {
                       >
                         <User className="size-3.5 text-primary" />
                         <span>My Player Profile</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowAccountMenu(false);
-                          setChangePasswordTarget({
-                            id: authUser.id,
-                            display_name: authUser.name,
-                            spirit_animal: authUser.spirit_animal,
-                            quote: authUser.quote,
-                          });
-                        }}
-                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-foreground transition hover:bg-secondary"
-                      >
-                        <KeyRound className="size-3.5 text-primary" />
-                        <span>Change Password</span>
                       </button>
                       <button
                         type="button"

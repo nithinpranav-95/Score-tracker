@@ -88,6 +88,7 @@ export interface AuthUser {
   name: string;
   spirit_animal: string;
   quote?: string;
+  troop?: string;
 }
 
 export interface StoredAccount {
@@ -219,6 +220,82 @@ export function setCurrentUser(user: AuthUser | null) {
 
 export function signOut() {
   setCurrentUser(null);
+}
+
+/** Enter a troop by troop name + trooper name (no password). */
+export async function enterTroop({
+  troop,
+  name,
+}: {
+  troop: string;
+  name: string;
+}): Promise<{ user: AuthUser }> {
+  const t = troop.trim();
+  const n = name.trim();
+  if (!t) throw new Error("Please enter your troop name");
+  if (!n) throw new Error("Please enter your trooper name");
+  const { data: troops } = await supabase.from("troops").select("name").ilike("name", t);
+  const troopRow = troops?.[0];
+  if (!troopRow) throw new Error("Troop not found. Check your troop name.");
+  const { data: players } = await supabase
+    .from("players")
+    .select("id, name, quote, spirit_animal")
+    .ilike("troop", troopRow.name)
+    .ilike("name", n);
+  const p = players?.[0];
+  if (!p) throw new Error(`No trooper named "${n}" in ${troopRow.name}.`);
+  const user: AuthUser = {
+    id: p.id,
+    name: p.name,
+    spirit_animal: p.spirit_animal,
+    quote: cleanQuote(p.quote),
+    troop: troopRow.name,
+  };
+  setCurrentUser(user);
+  return { user };
+}
+
+/** Create a new troop with the creator and other troopers. */
+export async function createTroop({
+  troop,
+  name,
+  spirit_animal,
+  troopers,
+}: {
+  troop: string;
+  name: string;
+  spirit_animal: string;
+  troopers: string[];
+}): Promise<{ user: AuthUser }> {
+  const t = troop.trim();
+  const n = name.trim();
+  if (!t) throw new Error("Please enter a troop name");
+  if (!n) throw new Error("Please enter your trooper name");
+  const { data: existing } = await supabase.from("troops").select("id").ilike("name", t);
+  if (existing?.length) throw new Error(`Troop "${t}" already exists. Enter it instead.`);
+  const { error: tErr } = await supabase.from("troops").insert({ name: t });
+  if (tErr) throw new Error("Could not create troop. Please try again.");
+  const others = Array.from(
+    new Set(troopers.map((x) => x.trim()).filter((x) => x && x.toLowerCase() !== n.toLowerCase())),
+  );
+  const { data, error } = await supabase
+    .from("players")
+    .insert([
+      { name: n, spirit_animal, troop: t, quote: spiritAnimals[spirit_animal]?.defaultQuote ?? "" },
+      ...others.map((o) => ({ name: o, spirit_animal: "fox", troop: t })),
+    ])
+    .select("id, name, spirit_animal, quote");
+  const me = data?.[0];
+  if (error || !me) throw new Error("Could not add troopers. Please try again.");
+  const user: AuthUser = {
+    id: me.id,
+    name: me.name,
+    spirit_animal: me.spirit_animal,
+    quote: cleanQuote(me.quote),
+    troop: t,
+  };
+  setCurrentUser(user);
+  return { user };
 }
 
 export async function signUpWithNameAndPassword({
