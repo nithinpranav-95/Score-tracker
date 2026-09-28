@@ -693,7 +693,7 @@ function GameApp() {
               <p className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
                 {authUser ? `Trooper · ${authUser.name}` : "Game Night"}
               </p>
-              <h1 className="font-heading text-xl font-bold leading-tight">{TROOP_NAME}</h1>
+              <h1 className="font-heading text-xl font-bold leading-tight">{authUser?.troop ?? TROOP_NAME}</h1>
             </div>
           </button>
 

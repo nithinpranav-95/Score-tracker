@@ -1,127 +1,66 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import {
-  ArrowLeft,
-  Check,
-  Eye,
-  EyeOff,
-  Gamepad2,
-  KeyRound,
-  Lock,
-  LogIn,
-  Sparkles,
-  User,
-  UserPlus,
-} from "lucide-react";
+import { Check, Gamepad2, LogIn, Plus, User, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ChangePasswordModal } from "@/components/ChangePasswordModal";
-import {
-  signInWithNameAndPassword,
-  TROOP_NAME,
-  signUpWithNameAndPassword,
-  spiritAnimals,
-  useAuth,
-  signOut,
-} from "@/lib/auth";
+import { createTroop, enterTroop, spiritAnimals, useAuth, signOut } from "@/lib/auth";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Sign In / Sign Up — ScoreUp" },
+      { title: "Enter Your Troop — ScoreUp" },
       {
         name: "description",
-        content: "Sign in with your name and password or create a player profile for ScoreUp.",
+        content: "Enter your troop name and trooper name, or create a new troop on ScoreUp.",
       },
+      { property: "og:title", content: "Enter Your Troop — ScoreUp" },
+      {
+        property: "og:description",
+        content: "Enter your troop name and trooper name, or create a new troop on ScoreUp.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: AuthPage,
 });
 
+const inputCls =
+  "h-12 w-full rounded-xl border border-border bg-secondary/80 px-4 text-sm font-semibold outline-none transition focus:border-primary focus:ring-1 focus:ring-primary";
+const labelCls = "block text-xs font-bold uppercase tracking-wider text-muted-foreground";
+
 export function AuthPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const [name, setName] = useState("");
+  const [mode, setMode] = useState<"enter" | "create">("enter");
   const [troop, setTroop] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [name, setName] = useState("");
   const [animal, setAnimal] = useState("lion");
-  const [quote, setQuote] = useState(spiritAnimals["lion"]?.defaultQuote || "Bold & fearless");
-  const [showPassword, setShowPassword] = useState(false);
+  const [troopers, setTroopers] = useState<string[]>(["", "", ""]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showChangePassword, setShowChangePassword] = useState(false);
 
-  function handleSelectAnimal(key: string) {
-    setAnimal(key);
-    const prevDefault = spiritAnimals[animal]?.defaultQuote;
-    if (!quote || quote === prevDefault) {
-      setQuote(spiritAnimals[key]?.defaultQuote || "");
-    }
+  function switchMode(m: "enter" | "create") {
+    setMode(m);
+    setError(null);
+    setSuccess(null);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSuccess(null);
-
-    if (troop.trim().toLowerCase() !== TROOP_NAME.toLowerCase()) {
-      setError("Troop not found. Check your troop name.");
-      return;
-    }
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setError("Please enter your trooper name");
-      return;
-    }
-
-    if (!password) {
-      setError("Please enter your password");
-      return;
-    }
-
-    if (mode === "signup") {
-      if (password.length < 4) {
-        setError("Password must be at least 4 characters");
-        return;
-      }
-      if (password !== confirmPassword) {
-        setError("Passwords do not match");
-        return;
-      }
-    }
-
     setIsSubmitting(true);
     try {
-      if (mode === "login") {
-        const { user: loggedInUser } = await signInWithNameAndPassword({
-          name: trimmedName,
-          password,
-        });
-        setSuccess(`Welcome back, ${loggedInUser.name}! Redirecting...`);
-        setTimeout(() => {
-          navigate({ to: "/" });
-        }, 800);
-      } else {
-        const { user: createdUser } = await signUpWithNameAndPassword({
-          name: trimmedName,
-          password,
-          spirit_animal: animal,
-          quote: quote.trim() || undefined,
-        });
-        setSuccess(`Welcome to the squad, ${createdUser.name}! Redirecting...`);
-        setTimeout(() => {
-          navigate({ to: "/" });
-        }, 800);
-      }
+      const { user: u } =
+        mode === "enter"
+          ? await enterTroop({ troop, name })
+          : await createTroop({ troop, name, spirit_animal: animal, troopers });
+      setSuccess(`Welcome, ${u.name}! Entering ${u.troop}...`);
+      setTimeout(() => navigate({ to: "/" }), 600);
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("An unexpected error occurred. Please try again.");
-      }
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -129,20 +68,18 @@ export function AuthPage() {
 
   return (
     <div className="relative flex min-h-screen flex-col justify-between bg-background text-foreground">
-      {/* Retro Squad Atmospheric Background */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
         <img
           src="/squad-bg.jpg"
-          alt="Squad background"
+          alt=""
           className="size-full object-cover object-top opacity-30 filter saturate-75 contrast-125"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/85 to-background" />
       </div>
 
-      {/* Top Header */}
       <header className="relative z-20 border-b border-border/80 bg-background/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 md:px-7">
-          <Link to="/" className="flex items-center gap-2 transition hover:opacity-90">
+        <div className="mx-auto flex max-w-5xl items-center px-4 py-4 md:px-7">
+          <Link to="/" className="flex items-center gap-2">
             <span className="grid size-9 place-items-center rounded-xl bg-primary text-lg font-bold text-primary-foreground shadow-md">
               🎲
             </span>
@@ -151,363 +88,183 @@ export function AuthPage() {
         </div>
       </header>
 
-      {/* Main Form Content */}
-      <main className="relative z-10 flex flex-1 items-center justify-center px-4 py-10 md:py-14">
+      <main className="relative z-10 flex flex-1 items-center justify-center px-4 py-10">
         <div className="w-full max-w-md rounded-[2rem] border border-border/80 bg-card/90 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
           {user ? (
-            /* Already Logged In State */
             <div className="space-y-6 text-center">
-              <div className="mx-auto grid size-20 place-items-center rounded-3xl border border-primary/30 bg-primary/20 text-4xl shadow-inner">
+              <div className="mx-auto grid size-20 place-items-center rounded-3xl border border-primary/30 bg-primary/20 text-4xl">
                 {spiritAnimals[user.spirit_animal]?.emoji || "🦊"}
               </div>
               <div>
                 <span className="rounded-full bg-primary/20 px-3 py-1 text-xs font-bold text-primary">
-                  Currently Logged In
+                  {user.troop ?? "Troop"}
                 </span>
                 <h1 className="mt-2 font-heading text-3xl font-bold">{user.name}</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {spiritAnimals[user.spirit_animal]?.title || user.spirit_animal} ·{" "}
-                  <span className="italic">"{user.quote || "Ready for game night"}"</span>
-                </p>
               </div>
-
-              <div className="flex flex-col gap-3 pt-2">
-                <Button
-                  onClick={() => navigate({ to: "/" })}
-                  className="h-12 rounded-xl bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-600 font-bold text-white shadow-lg shadow-purple-500/20 hover:brightness-110"
-                >
-                  <Gamepad2 className="mr-2 size-4" /> Go to Game Dashboard
+              <div className="flex flex-col gap-3">
+                <Button onClick={() => navigate({ to: "/" })} className="h-12 rounded-xl font-bold">
+                  <Gamepad2 className="mr-2 size-4" /> Go to Game Board
                 </Button>
-                <Button
-                  onClick={() => setShowChangePassword(true)}
-                  variant="outline"
-                  className="h-12 rounded-xl border-border font-bold text-foreground hover:bg-secondary"
-                >
-                  <KeyRound className="mr-2 size-4 text-primary" /> Change Password
-                </Button>
-                <Button
-                  onClick={() => {
-                    signOut();
-                    setSuccess("Signed out successfully.");
-                  }}
-                  variant="ghost"
-                  className="h-11 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground"
-                >
-                  Sign Out / Switch Account
+                <Button onClick={() => signOut()} variant="ghost" className="h-11 rounded-xl text-xs">
+                  Leave / Switch Trooper
                 </Button>
               </div>
-              {showChangePassword && (
-                <ChangePasswordModal
-                  player={user}
-                  close={() => setShowChangePassword(false)}
-                  onSuccess={() => setSuccess("Password changed successfully!")}
-                />
-              )}
             </div>
           ) : (
-            /* Sign In / Sign Up Form */
             <div>
-              {/* Segmented Mode Toggle */}
               <div className="flex rounded-2xl border border-border/80 bg-secondary/60 p-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode("login");
-                    setError(null);
-                    setSuccess(null);
-                  }}
-                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition ${
-                    mode === "login"
-                      ? "bg-primary text-primary-foreground shadow-md"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <LogIn className="size-4" />
-                  <span>Log In</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode("signup");
-                    setError(null);
-                    setSuccess(null);
-                  }}
-                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition ${
-                    mode === "signup"
-                      ? "bg-primary text-primary-foreground shadow-md"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <UserPlus className="size-4" />
-                  <span>Sign Up</span>
-                </button>
+                {(
+                  [
+                    ["enter", "Enter Troop", LogIn],
+                    ["create", "Create Troop", Users],
+                  ] as const
+                ).map(([m, label, Icon]) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => switchMode(m)}
+                    className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition ${
+                      mode === m
+                        ? "bg-primary text-primary-foreground shadow-md"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Icon className="size-4" />
+                    <span>{label}</span>
+                  </button>
+                ))}
               </div>
 
-              {/* Title Header */}
               <div className="mt-6 text-center">
                 <h1 className="font-heading text-2xl font-bold sm:text-3xl">
-                  {mode === "login" ? "Welcome Back" : "Join ScoreUp Squad"}
+                  {mode === "enter" ? "Enter your troop" : "Start a new troop"}
                 </h1>
                 <p className="mt-1.5 text-xs text-muted-foreground sm:text-sm">
-                  {mode === "login"
-                    ? "Enter your name and password to access your game night stats"
-                    : "Create a persistent player profile with a name, avatar & password"}
+                  {mode === "enter"
+                    ? "Type your troop name and trooper name to get in"
+                    : "Name your troop and add your friends as troopers"}
                 </p>
               </div>
 
-              {/* Feedback Alerts */}
               {error && (
                 <div className="mt-4 rounded-xl border border-destructive/50 bg-destructive/10 p-3.5 text-xs font-semibold text-destructive">
                   ⚠️ {error}
                 </div>
               )}
               {success && (
-                <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-500/50 bg-emerald-500/10 p-3.5 text-xs font-semibold text-emerald-400">
+                <div className="mt-4 flex items-center gap-2 rounded-xl border border-primary/50 bg-primary/10 p-3.5 text-xs font-semibold text-primary">
                   <Check className="size-4" />
                   <span>{success}</span>
                 </div>
               )}
 
-              {/* Form */}
               <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-                {/* Troop Name Input */}
                 <div>
-                  <label
-                    htmlFor="auth-troop"
-                    className="block text-xs font-bold uppercase tracking-wider text-muted-foreground"
-                  >
+                  <label htmlFor="auth-troop" className={labelCls}>
                     Troop Name
                   </label>
                   <input
                     id="auth-troop"
-                    type="text"
                     required
                     value={troop}
                     onChange={(e) => setTroop(e.target.value)}
-                    placeholder="Enter your troop name"
-                    className="mt-1.5 h-12 w-full rounded-xl border border-border bg-secondary/80 px-4 text-sm font-semibold outline-none transition focus:border-primary focus:ring-1 focus:ring-primary"
+                    placeholder="e.g. Connect with pani poori"
+                    className={`mt-1.5 ${inputCls}`}
                   />
                 </div>
-
-                {/* Trooper Name Input */}
                 <div>
-                  <label
-                    htmlFor="auth-name"
-                    className="block text-xs font-bold uppercase tracking-wider text-muted-foreground"
-                  >
-                    Trooper Name
+                  <label htmlFor="auth-name" className={labelCls}>
+                    {mode === "enter" ? "Trooper Name" : "Your Trooper Name"}
                   </label>
                   <div className="relative mt-1.5">
                     <User className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <input
                       id="auth-name"
-                      type="text"
                       required
-                      autoComplete="username"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. Jordan"
-                      className="h-12 w-full rounded-xl border border-border bg-secondary/80 pl-10 pr-4 text-sm font-semibold outline-none transition focus:border-primary focus:ring-1 focus:ring-primary"
+                      placeholder="e.g. Nithin"
+                      className={`${inputCls} pl-10`}
                     />
                   </div>
                 </div>
 
-                {/* Additional fields for Sign Up */}
-                {mode === "signup" && (
+                {mode === "create" && (
                   <>
-                    {/* Spirit Animal Selector */}
                     <div>
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                          Choose Spirit Animal
-                        </label>
-                        <span className="text-xs font-bold text-primary">
-                          {spiritAnimals[animal]?.emoji} {spiritAnimals[animal]?.title}
-                        </span>
-                      </div>
-                      <div className="mt-2 grid max-h-36 grid-cols-4 gap-2 overflow-y-auto rounded-xl border border-border/70 bg-secondary/40 p-2 sm:grid-cols-6">
+                      <label className={labelCls}>Your Spirit Animal</label>
+                      <div className="mt-2 grid max-h-36 grid-cols-6 gap-2 overflow-y-auto rounded-xl border border-border/70 bg-secondary/40 p-2">
                         {Object.entries(spiritAnimals).map(([key, info]) => (
                           <button
                             key={key}
                             type="button"
-                            onClick={() => handleSelectAnimal(key)}
+                            onClick={() => setAnimal(key)}
                             title={info.title}
-                            className={`flex flex-col items-center justify-center rounded-xl p-2 transition ${
-                              animal === key
-                                ? "bg-primary font-bold text-primary-foreground shadow-sm scale-105"
-                                : "bg-card text-muted-foreground hover:bg-secondary hover:text-foreground"
+                            className={`rounded-xl p-2 text-2xl transition ${
+                              animal === key ? "bg-primary scale-105" : "bg-card hover:bg-secondary"
                             }`}
                           >
-                            <span className="text-2xl">{info.emoji}</span>
-                            <span className="mt-1 line-clamp-1 text-[10px] leading-tight">
-                              {info.title.split(" ")[1] || info.title}
-                            </span>
+                            {info.emoji}
                           </button>
                         ))}
                       </div>
                     </div>
-
-                    {/* Catchphrase / Quote */}
-                    <div>
-                      <label
-                        htmlFor="auth-quote"
-                        className="block text-xs font-bold uppercase tracking-wider text-muted-foreground"
+                    <div className="space-y-2">
+                      <label className={labelCls}>Other Troopers</label>
+                      {troopers.map((t, i) => (
+                        <div key={i} className="flex gap-2">
+                          <input
+                            aria-label={`Trooper ${i + 1}`}
+                            value={t}
+                            onChange={(e) =>
+                              setTroopers((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))
+                            }
+                            placeholder={`Trooper ${i + 1}`}
+                            className={inputCls}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Remove trooper ${i + 1}`}
+                            onClick={() => setTroopers((prev) => prev.filter((_, j) => j !== i))}
+                            className="h-12 w-12 shrink-0"
+                          >
+                            <X className="size-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setTroopers((prev) => [...prev, ""])}
+                        className="h-11 w-full rounded-xl border-dashed"
                       >
-                        Catchphrase / Quote (Optional)
-                      </label>
-                      <div className="relative mt-1.5">
-                        <Sparkles className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <input
-                          id="auth-quote"
-                          type="text"
-                          value={quote}
-                          onChange={(e) => setQuote(e.target.value)}
-                          placeholder='e.g. "Bold & fearless"'
-                          className="h-12 w-full rounded-xl border border-border bg-secondary/80 pl-10 pr-4 text-sm italic outline-none transition focus:border-primary focus:ring-1 focus:ring-primary"
-                        />
-                      </div>
+                        <Plus className="mr-2 size-4" /> Add trooper
+                      </Button>
                     </div>
                   </>
                 )}
 
-                {/* Password Input */}
-                <div>
-                  <div className="flex items-center justify-between">
-                    <label
-                      htmlFor="auth-password"
-                      className="block text-xs font-bold uppercase tracking-wider text-muted-foreground"
-                    >
-                      Password
-                    </label>
-                    {mode === "signup" && (
-                      <span className="text-[11px] text-muted-foreground">Min. 4 characters</span>
-                    )}
-                  </div>
-                  <div className="relative mt-1.5">
-                    <Lock className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <input
-                      id="auth-password"
-                      type={showPassword ? "text" : "password"}
-                      required
-                      autoComplete={mode === "login" ? "current-password" : "new-password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder={mode === "signup" ? "Create a password" : "Enter your password"}
-                      className="h-12 w-full rounded-xl border border-border bg-secondary/80 pl-10 pr-11 text-sm outline-none transition focus:border-primary focus:ring-1 focus:ring-primary"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Confirm Password for Sign Up */}
-                {mode === "signup" && (
-                  <div>
-                    <label
-                      htmlFor="auth-confirm-password"
-                      className="block text-xs font-bold uppercase tracking-wider text-muted-foreground"
-                    >
-                      Confirm Password
-                    </label>
-                    <div className="relative mt-1.5">
-                      <Lock className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                      <input
-                        id="auth-confirm-password"
-                        type={showPassword ? "text" : "password"}
-                        required
-                        autoComplete="new-password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Re-enter your password"
-                        className="h-12 w-full rounded-xl border border-border bg-secondary/80 pl-10 pr-4 text-sm outline-none transition focus:border-primary focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Submit Button */}
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="mt-6 h-12 w-full rounded-xl bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-600 font-bold text-white shadow-lg shadow-purple-500/25 transition hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
+                  className="mt-4 h-12 w-full rounded-xl font-bold"
                 >
-                  {isSubmitting ? (
-                    <span className="flex items-center gap-2">
-                      <span className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      <span>{mode === "login" ? "Signing In..." : "Creating Account..."}</span>
-                    </span>
-                  ) : mode === "login" ? (
-                    <span className="flex items-center gap-2">
-                      <LogIn className="size-4" />
-                      <span>Sign In to ScoreUp</span>
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <UserPlus className="size-4" />
-                      <span>Create Account & Join Squad</span>
-                    </span>
-                  )}
+                  {isSubmitting
+                    ? "Please wait..."
+                    : mode === "enter"
+                      ? "Enter Troop"
+                      : "Create Troop & Enter"}
                 </Button>
               </form>
-
-              {/* Mode switch helper link */}
-              <div className="mt-6 text-center text-xs text-muted-foreground">
-                {mode === "login" ? (
-                  <p>
-                    Don't have an account yet?{" "}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode("signup");
-                        setError(null);
-                        setSuccess(null);
-                      }}
-                      className="font-bold text-primary underline underline-offset-4 hover:brightness-110"
-                    >
-                      Sign up now
-                    </button>
-                  </p>
-                ) : (
-                  <p>
-                    Already have an account?{" "}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode("login");
-                        setError(null);
-                        setSuccess(null);
-                      }}
-                      className="font-bold text-primary underline underline-offset-4 hover:brightness-110"
-                    >
-                      Log in here
-                    </button>
-                  </p>
-                )}
-              </div>
-
-              {/* Guest option */}
-              <div className="mt-5 border-t border-border/60 pt-4 text-center">
-                <Link
-                  to="/"
-                  className="text-xs font-semibold text-muted-foreground transition hover:text-foreground"
-                >
-                  Or continue playing as guest →
-                </Link>
-              </div>
             </div>
           )}
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="relative z-10 py-4 text-center text-xs text-muted-foreground">
-        ScoreUp Game Night · Live scoring and glory for your friend group
+        ScoreUp Game Night · Live scoring and glory for your troop
       </footer>
     </div>
   );
