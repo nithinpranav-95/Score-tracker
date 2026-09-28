@@ -11,6 +11,7 @@ import {
   KeyRound,
   LogIn,
   LogOut,
+  Mail,
   Minus,
   Pencil,
   Play,
@@ -44,6 +45,7 @@ import {
   cleanQuote,
   parseQuoteAuth,
   encodeQuoteAuth,
+  createTroop,
   type AuthUser,
   TROOP_NAME,
 } from "@/lib/auth";
@@ -274,6 +276,7 @@ function GameApp() {
   } | null>(null);
   const [newGame, setNewGame] = useState(false);
   const [addPlayer, setAddPlayer] = useState(false);
+  const [showCreateTroop, setShowCreateTroop] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<PastSession[]>([]);
@@ -693,11 +696,9 @@ function GameApp() {
             </span>
             <div>
               <p className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
-                {authUser ? `Troop · ${authUser.troop ?? TROOP_NAME}` : "Game Night"}
+                Game Night
               </p>
-              <h1 className="font-heading text-xl font-bold leading-tight">
-                {authUser ? authUser.name : "ScoreUp"}
-              </h1>
+              <h1 className="font-heading text-xl font-bold leading-tight">ScoreUp</h1>
             </div>
           </button>
 
@@ -720,14 +721,14 @@ function GameApp() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Link
-              to="/auth"
-              search={{ mode: "create" }}
+            <button
+              type="button"
+              onClick={() => setShowCreateTroop(true)}
               className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-xs font-bold text-primary-foreground shadow-md transition hover:brightness-110 active:scale-95"
             >
               <Users className="size-3.5" />
               <span>Create Troop</span>
-            </Link>
+            </button>
 
             <button
               onClick={() => setTab("players")}
@@ -785,15 +786,17 @@ function GameApp() {
                         <User className="size-3.5 text-primary" />
                         <span>My Player Profile</span>
                       </button>
-                      <Link
-                        to="/auth"
-                        search={{ mode: "create" }}
-                        onClick={() => setShowAccountMenu(false)}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAccountMenu(false);
+                          setShowCreateTroop(true);
+                        }}
                         className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-foreground transition hover:bg-secondary"
                       >
                         <Users className="size-3.5 text-primary" />
                         <span>Create New Troop</span>
-                      </Link>
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
@@ -838,6 +841,7 @@ function GameApp() {
             start={handleSelectGame}
             openNew={() => setNewGame(true)}
             openPlayer={setProfileId}
+            openCreateTroop={() => setShowCreateTroop(true)}
             goToPlayers={() => setTab("players")}
           />
         )}
@@ -943,6 +947,9 @@ function GameApp() {
           }}
           close={() => setChangePasswordTarget(null)}
         />
+      )}
+      {showCreateTroop && (
+        <CreateTroopModal close={() => setShowCreateTroop(false)} currentUser={authUser} />
       )}
     </div>
   );
@@ -1566,6 +1573,7 @@ function PlayView({
   start,
   openNew,
   openPlayer,
+  openCreateTroop,
   goToPlayers,
 }: {
   games: Game[];
@@ -1573,6 +1581,7 @@ function PlayView({
   start: (g: Game) => void;
   openNew: () => void;
   openPlayer: (id: string) => void;
+  openCreateTroop?: () => void;
   goToPlayers?: () => void;
 }) {
   return (
@@ -1620,14 +1629,25 @@ function PlayView({
                 : `${players.length} friend${players.length === 1 ? "" : "s"} ready for game night`}
             </p>
           </div>
-          <Link
-            to="/auth"
-            search={{ mode: "create" }}
-            className="flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3.5 py-2 text-xs font-bold text-primary transition hover:bg-primary/20"
-          >
-            <Users className="size-4" />
-            <span>Create a Troop</span>
-          </Link>
+          {openCreateTroop ? (
+            <button
+              type="button"
+              onClick={openCreateTroop}
+              className="flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3.5 py-2 text-xs font-bold text-primary transition hover:bg-primary/20"
+            >
+              <Users className="size-4" />
+              <span>Create a Troop</span>
+            </button>
+          ) : (
+            <Link
+              to="/auth"
+              search={{ mode: "create" }}
+              className="flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3.5 py-2 text-xs font-bold text-primary transition hover:bg-primary/20"
+            >
+              <Users className="size-4" />
+              <span>Create a Troop</span>
+            </Link>
+          )}
         </div>
 
         {players.length === 0 ? (
@@ -2845,4 +2865,168 @@ function playVictory() {
   } catch {
     /* sound is optional */
   }
+}
+
+function CreateTroopModal({
+  close,
+  currentUser,
+}: {
+  close: () => void;
+  currentUser?: AuthUser | null;
+}) {
+  const [troop, setTroop] = useState("");
+  const [name, setName] = useState(currentUser?.name ?? "");
+  const [email, setEmail] = useState(currentUser?.email ?? "");
+  const [animal, setAnimal] = useState(currentUser?.spirit_animal ?? "lion");
+  const [troopers, setTroopers] = useState<string[]>(["", "", ""]);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const inputCls =
+    "h-12 w-full rounded-xl border border-border bg-secondary/80 px-4 text-sm font-semibold outline-none transition focus:border-primary focus:ring-1 focus:ring-primary";
+  const labelCls = "block text-xs font-bold uppercase tracking-wider text-muted-foreground";
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await createTroop({ troop, name, email, spirit_animal: animal, troopers });
+      close();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to create troop. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-end bg-background/85 p-4 backdrop-blur-sm sm:place-items-center">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[1.5rem] border border-border bg-card p-6 shadow-2xl">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="text-2xl">👥</span>
+            <h2 className="font-heading text-2xl font-bold">Create New Troop</h2>
+          </div>
+          <Button onClick={close} variant="ghost" size="icon" aria-label="Close">
+            <X />
+          </Button>
+        </div>
+
+        {error && (
+          <div className="mt-4 rounded-xl border border-destructive/50 bg-destructive/10 p-3.5 text-xs font-semibold text-destructive">
+            ⚠️ {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+          <div>
+            <label htmlFor="modal-troop-name" className={labelCls}>
+              Troop Name
+            </label>
+            <input
+              id="modal-troop-name"
+              required
+              value={troop}
+              onChange={(e) => setTroop(e.target.value)}
+              placeholder="e.g. Champions Squad, Pani Poori Gang…"
+              className={`mt-1.5 ${inputCls}`}
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label htmlFor="modal-trooper-name" className={labelCls}>
+              Your Trooper Name
+            </label>
+            <input
+              id="modal-trooper-name"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Jordan, Alex…"
+              className={`mt-1.5 ${inputCls}`}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="modal-trooper-email" className={labelCls}>
+              Email Address
+            </label>
+            <input
+              id="modal-trooper-email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="e.g. player@example.com"
+              className={`mt-1.5 ${inputCls}`}
+            />
+          </div>
+
+          <div>
+            <label className={labelCls}>Spirit Animal</label>
+            <div className="mt-2 grid max-h-32 grid-cols-6 gap-2 overflow-y-auto rounded-xl border border-border/70 bg-secondary/40 p-2">
+              {Object.entries(spiritAnimals).map(([key, info]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setAnimal(key)}
+                  title={info.title}
+                  className={`rounded-xl p-2 text-2xl transition ${
+                    animal === key ? "bg-primary scale-105" : "bg-card hover:bg-secondary"
+                  }`}
+                >
+                  {info.emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className={labelCls}>Add Troopers / Players</label>
+            {troopers.map((t, i) => (
+              <div key={i} className="flex gap-2">
+                <input
+                  aria-label={`Trooper ${i + 1}`}
+                  value={t}
+                  onChange={(e) =>
+                    setTroopers((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))
+                  }
+                  placeholder={`Trooper ${i + 1} name`}
+                  className={inputCls}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Remove trooper ${i + 1}`}
+                  onClick={() => setTroopers((prev) => prev.filter((_, j) => j !== i))}
+                  className="h-12 w-12 shrink-0"
+                >
+                  <X className="size-4" />
+                </Button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setTroopers((prev) => [...prev, ""])}
+              className="h-11 w-full rounded-xl border-dashed"
+            >
+              <Plus className="mr-2 size-4" /> Add player
+            </Button>
+          </div>
+
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            className="mt-6 h-12 w-full rounded-xl bg-primary font-bold text-primary-foreground shadow-lg hover:brightness-105"
+          >
+            {isSubmitting ? "Creating Troop..." : "Create Troop & Start"}
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
 }

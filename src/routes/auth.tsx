@@ -97,7 +97,7 @@ export function AuthPage() {
 
       <main className="relative z-10 flex flex-1 items-center justify-center px-4 py-10">
         <div className="w-full max-w-md rounded-[2rem] border border-border/80 bg-card/90 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
-          {user ? (
+          {user && mode !== "create" ? (
             <div className="space-y-6 text-center">
               <div className="mx-auto grid size-20 place-items-center rounded-3xl border border-primary/30 bg-primary/20 text-4xl">
                 {spiritAnimals[user.spirit_animal]?.emoji || "🦊"}
@@ -111,6 +111,13 @@ export function AuthPage() {
               <div className="flex flex-col gap-3">
                 <Button onClick={() => navigate({ to: "/" })} className="h-12 rounded-xl font-bold">
                   <Gamepad2 className="mr-2 size-4" /> Go to Game Board
+                </Button>
+                <Button
+                  onClick={() => switchMode("create")}
+                  variant="outline"
+                  className="h-12 rounded-xl font-bold"
+                >
+                  <Users className="mr-2 size-4" /> Create a New Troop
                 </Button>
                 <Button
                   onClick={() => signOut()}
