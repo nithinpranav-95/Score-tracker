@@ -978,31 +978,65 @@ function MyPointsCard({
   const emoji = spiritAnimals[authUser.spirit_animal]?.emoji || "🦊";
   const rank = mine ? stats.indexOf(mine) + 1 : null;
 
+  const [totalTroops, setTotalTroops] = useState<number>(1);
+
+  useEffect(() => {
+    if (!authUser?.name) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("players")
+          .select("troop")
+          .ilike("name", authUser.name);
+        if (data && data.length > 0 && !cancelled) {
+          const distinctTroops = new Set(data.map((d) => d.troop).filter(Boolean));
+          setTotalTroops(Math.max(1, distinctTroops.size));
+        }
+      } catch (e) {
+        console.debug("Failed to fetch total troops:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser.name]);
+
   return (
     <button
       type="button"
       onClick={() => matchedPlayer && openProfile(matchedPlayer.id)}
-      className="mb-6 flex w-full items-center gap-4 rounded-[1.5rem] border border-primary/30 bg-gradient-to-r from-primary/15 via-card to-card p-4 text-left shadow-lg transition hover:border-primary/60"
+      className="mb-6 flex w-full flex-wrap items-center justify-between gap-4 rounded-[1.5rem] border border-primary/30 bg-gradient-to-r from-primary/15 via-card to-card p-4.5 text-left shadow-lg transition hover:border-primary/60"
     >
-      <span className="animal-bob grid size-14 shrink-0 place-items-center rounded-2xl bg-primary/20 text-3xl">
-        {emoji}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
-          Welcome back
-        </p>
-        <h2 className="truncate font-heading text-xl font-bold">{authUser.name}</h2>
-        <p className="text-xs text-muted-foreground">
-          {mine ? `${mine.games} games · ${mine.wins} wins` : "No games yet — play your first!"}
-        </p>
+      <div className="flex items-center gap-3.5 min-w-0">
+        <span className="animal-bob grid size-14 shrink-0 place-items-center rounded-2xl bg-primary/20 text-3xl">
+          {emoji}
+        </span>
+        <div className="min-w-0">
+          <h2 className="truncate font-heading text-xl font-bold text-foreground">
+            {authUser.name}
+          </h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {mine ? `${mine.games} games · ${mine.wins} wins` : "No games yet"}
+          </p>
+        </div>
       </div>
-      <div className="shrink-0 text-right">
-        <p className="font-heading text-3xl font-bold tabular-nums text-primary">
-          {mine?.points ?? 0}
-        </p>
-        <p className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
-          points{rank ? ` · #${rank}` : ""}
-        </p>
+
+      <div className="flex items-center gap-3.5">
+        <div className="rounded-xl border border-border/60 bg-secondary/60 px-3.5 py-2 text-center shadow-sm">
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
+            Rank in Troop
+          </p>
+          <p className="font-heading text-lg font-bold text-amber-400">
+            {rank ? `#${rank}` : "#1"}
+          </p>
+        </div>
+        <div className="rounded-xl border border-border/60 bg-secondary/60 px-3.5 py-2 text-center shadow-sm">
+          <p className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
+            Total Troops
+          </p>
+          <p className="font-heading text-lg font-bold text-primary">{totalTroops}</p>
+        </div>
       </div>
     </button>
   );
