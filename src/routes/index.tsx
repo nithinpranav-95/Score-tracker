@@ -467,6 +467,7 @@ function GameApp() {
       }
     }
     syncOngoingSession();
+    const interval = setInterval(syncOngoingSession, 4000);
 
     function handleLocalSync() {
       const activeData = loadActiveGameSession(currentTroop);
@@ -482,6 +483,7 @@ function GameApp() {
     window.addEventListener("storage", handleLocalSync);
     return () => {
       isCancelled = true;
+      clearInterval(interval);
       window.removeEventListener("scoreup_session_changed", handleLocalSync);
       window.removeEventListener("storage", handleLocalSync);
     };
