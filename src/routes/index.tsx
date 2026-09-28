@@ -220,6 +220,9 @@ type PlayerStat = {
   animal: string;
   games: number;
   wins: number;
+  seconds: number;
+  thirds: number;
+  avgRank: number;
   rate: number;
   points: number;
   streak: number;
@@ -235,6 +238,10 @@ function playerStats(players: Player[], sessions: PastSession[]): PlayerStat[] {
         return r ? [{ gameName: s.gameName, score: r.score, rank: r.rank }] : [];
       });
       const wins = rows.filter((r) => r.rank === 1).length;
+      const seconds = rows.filter((r) => r.rank === 2).length;
+      const thirds = rows.filter((r) => r.rank === 3).length;
+      const totalRankSum = rows.reduce((sum, r) => sum + r.rank, 0);
+      const avgRank = rows.length > 0 ? totalRankSum / rows.length : 999;
       let streak = 0;
       for (const r of rows) {
         if (r.rank === 1) streak++;
@@ -250,6 +257,9 @@ function playerStats(players: Player[], sessions: PastSession[]): PlayerStat[] {
         animal: p.spirit_animal,
         games: rows.length,
         wins,
+        seconds,
+        thirds,
+        avgRank,
         rate: rows.length ? Math.round((wins / rows.length) * 100) : 0,
         points: rows.reduce((sum, r) => sum + r.score, 0),
         streak,
@@ -257,7 +267,14 @@ function playerStats(players: Player[], sessions: PastSession[]): PlayerStat[] {
         scores: [...rows].reverse().map((r) => r.score),
       };
     })
-    .sort((a, b) => b.wins - a.wins || b.points - a.points || a.name.localeCompare(b.name));
+    .sort((a, b) => {
+      // Position-based ranking (not based on total points)
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      if (b.seconds !== a.seconds) return b.seconds - a.seconds;
+      if (b.thirds !== a.thirds) return b.thirds - a.thirds;
+      if (a.avgRank !== b.avgRank) return a.avgRank - b.avgRank;
+      return a.name.localeCompare(b.name);
+    });
 }
 
 function GameApp() {
@@ -2278,7 +2295,10 @@ function RanksView({
               <div className="flex-1">
                 <p className="font-heading text-lg font-bold">{s.name}</p>
                 <p className="text-sm text-muted-foreground">
-                  {s.wins} wins · {s.points} pts · {s.rate}%
+                  {s.wins} {s.wins === 1 ? "win" : "wins"}
+                  {s.seconds > 0 ? ` · ${s.seconds} 2nd` : ""}
+                  {s.avgRank < 999 ? ` · Avg position #${s.avgRank.toFixed(1)}` : ""} · {s.rate}%
+                  win rate
                 </p>
               </div>
               <Trophy className={i === 0 ? "text-primary" : "text-muted-foreground"} />
