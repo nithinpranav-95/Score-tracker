@@ -277,6 +277,27 @@ function playerStats(players: Player[], sessions: PastSession[]): PlayerStat[] {
     });
 }
 
+function computePlayerRanks(stats: PlayerStat[]): Map<string, number> {
+  const rankMap = new Map<string, number>();
+  let currentRank = 1;
+  for (let i = 0; i < stats.length; i++) {
+    if (i > 0) {
+      const prev = stats[i - 1];
+      const curr = stats[i];
+      const isTied =
+        curr.wins === prev.wins &&
+        curr.seconds === prev.seconds &&
+        curr.thirds === prev.thirds &&
+        Math.abs(curr.avgRank - prev.avgRank) < 0.0001;
+      if (!isTied) {
+        currentRank = i + 1;
+      }
+    }
+    rankMap.set(stats[i].id, currentRank);
+  }
+  return rankMap;
+}
+
 function GameApp() {
   const [tab, setTab] = useState<Tab>("play");
   const [games, setGames] = useState<Game[]>(demoGames);
@@ -1067,7 +1088,8 @@ function MyPointsCard({
     players.find((p) => p.id === authUser.id) ??
     players.find((p) => p.display_name.toLowerCase() === authUser.name.toLowerCase());
   const emoji = spiritAnimals[authUser.spirit_animal]?.emoji || "🦊";
-  const rank = mine ? stats.indexOf(mine) + 1 : null;
+  const ranks = computePlayerRanks(stats);
+  const rank = mine ? ranks.get(mine.id) ?? 1 : null;
 
   const [totalTroops, setTotalTroops] = useState<number>(1);
 
@@ -2313,8 +2335,8 @@ function RanksView({
   const [layout, setLayout] = useState<"columns" | "rows">("columns");
   const [sortOrder, setSortOrder] = useState<"desc" | "asc" | "alpha">("desc");
 
-  // Create rank mapping based on position ordering (#1, #2, #3...)
-  const rankMap = new Map(stats.map((s, idx) => [s.id, idx + 1]));
+  // Create rank mapping based on position ordering (#1, #2, #3...) with equal ranks for ties
+  const rankMap = computePlayerRanks(stats);
 
   const totalVictories = filteredSessions.length;
   const squadSize = players.length;
