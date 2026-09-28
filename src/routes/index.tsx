@@ -598,6 +598,15 @@ function GameApp() {
       />
     );
   const openProfile = players.find((p) => p.id === profileId);
+
+  // Resolve the player ID that corresponds to the logged-in user (match by id first, then name)
+  const currentPlayerId = authUser
+    ? (
+        players.find((p) => p.id === authUser.id) ??
+        players.find((p) => p.display_name.toLowerCase() === authUser.name.toLowerCase())
+      )?.id
+    : undefined;
+
   return (
     <div className="relative min-h-screen bg-background pb-24 text-foreground">
       {tab === "play" && (
@@ -773,6 +782,7 @@ function GameApp() {
             sessions={sessions}
             openPlayer={setProfileId}
             openEditPlayer={(p) => setEditingPlayer(p)}
+            currentUserId={currentPlayerId}
           />
         )}
         {tab === "ranks" && (
@@ -855,6 +865,7 @@ function GameApp() {
           close={() => setProfileId(null)}
           onEdit={(p) => setEditingPlayer(p)}
           onChangePassword={(p) => setChangePasswordTarget(p)}
+          isOwnProfile={openProfile.id === currentPlayerId}
         />
       )}
       {changePasswordTarget && (
@@ -929,12 +940,14 @@ function ProfileSheet({
   close,
   onEdit,
   onChangePassword,
+  isOwnProfile,
 }: {
   player: Player;
   sessions: PastSession[];
   close: () => void;
   onEdit?: (player: Player) => void;
   onChangePassword?: (player: Player) => void;
+  isOwnProfile?: boolean;
 }) {
   const mine = sessions.filter((s) => s.results.some((r) => r.playerId === player.id));
   const rows = mine.map((s) => {
@@ -981,7 +994,7 @@ function ProfileSheet({
             </div>
           </div>
           <div className="flex items-center gap-1">
-            {onChangePassword && (
+            {isOwnProfile && onChangePassword && (
               <Button
                 onClick={() => {
                   close();
@@ -995,7 +1008,7 @@ function ProfileSheet({
                 <KeyRound className="size-4" />
               </Button>
             )}
-            {onEdit && (
+            {isOwnProfile && onEdit && (
               <Button
                 onClick={() => {
                   close();
@@ -1327,11 +1340,13 @@ function PlayersView({
   sessions,
   openPlayer,
   openEditPlayer,
+  currentUserId,
 }: {
   players: Player[];
   sessions: PastSession[];
   openPlayer: (id: string) => void;
   openEditPlayer: (player: Player) => void;
+  currentUserId?: string;
 }) {
   const statsMap = new Map<string, PlayerStat>();
   playerStats(players, sessions).forEach((s) => statsMap.set(s.id, s));
@@ -1415,17 +1430,19 @@ function PlayersView({
                         </p>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      aria-label={`Edit ${p.display_name}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEditPlayer(p);
-                      }}
-                      className="grid size-8 place-items-center rounded-lg text-muted-foreground transition hover:bg-secondary hover:text-foreground"
-                    >
-                      <Pencil className="size-4" />
-                    </button>
+                    {currentUserId === p.id && (
+                      <button
+                        type="button"
+                        aria-label={`Edit ${p.display_name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditPlayer(p);
+                        }}
+                        className="grid size-8 place-items-center rounded-lg text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+                      >
+                        <Pencil className="size-4" />
+                      </button>
+                    )}
                   </div>
 
                   {/* Catchphrase quote pill */}
