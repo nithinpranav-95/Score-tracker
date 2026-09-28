@@ -45,6 +45,7 @@ import {
   parseQuoteAuth,
   encodeQuoteAuth,
   type AuthUser,
+  TROOP_NAME,
 } from "@/lib/auth";
 import { AuthPage } from "./auth";
 
@@ -690,9 +691,9 @@ function GameApp() {
             </span>
             <div>
               <p className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
-                Game Night
+                {authUser ? `Trooper · ${authUser.name}` : "Game Night"}
               </p>
-              <h1 className="font-heading text-2xl font-bold leading-tight">ScoreUp</h1>
+              <h1 className="font-heading text-xl font-bold leading-tight">{TROOP_NAME}</h1>
             </div>
           </button>
 

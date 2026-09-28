@@ -100,6 +100,7 @@ export interface StoredAccount {
   createdAt: string;
 }
 
+export const TROOP_NAME = "Connect with pani poori";
 const AUTH_USER_KEY = "scoreup_current_user";
 const AUTH_ACCOUNTS_KEY = "scoreup_accounts";
 const AUTH_EVENT_NAME = "scoreup_auth_change";

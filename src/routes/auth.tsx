@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { ChangePasswordModal } from "@/components/ChangePasswordModal";
 import {
   signInWithNameAndPassword,
+  TROOP_NAME,
   signUpWithNameAndPassword,
   spiritAnimals,
   useAuth,
@@ -42,6 +43,7 @@ export function AuthPage() {
 
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [name, setName] = useState("");
+  const [troop, setTroop] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [animal, setAnimal] = useState("lion");
@@ -65,9 +67,13 @@ export function AuthPage() {
     setError(null);
     setSuccess(null);
 
+    if (troop.trim().toLowerCase() !== TROOP_NAME.toLowerCase()) {
+      setError("Troop not found. Check your troop name.");
+      return;
+    }
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setError("Please enter your name");
+      setError("Please enter your trooper name");
       return;
     }
 
@@ -264,13 +270,32 @@ export function AuthPage() {
 
               {/* Form */}
               <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-                {/* Name / Nickname Input */}
+                {/* Troop Name Input */}
+                <div>
+                  <label
+                    htmlFor="auth-troop"
+                    className="block text-xs font-bold uppercase tracking-wider text-muted-foreground"
+                  >
+                    Troop Name
+                  </label>
+                  <input
+                    id="auth-troop"
+                    type="text"
+                    required
+                    value={troop}
+                    onChange={(e) => setTroop(e.target.value)}
+                    placeholder="Enter your troop name"
+                    className="mt-1.5 h-12 w-full rounded-xl border border-border bg-secondary/80 px-4 text-sm font-semibold outline-none transition focus:border-primary focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+
+                {/* Trooper Name Input */}
                 <div>
                   <label
                     htmlFor="auth-name"
                     className="block text-xs font-bold uppercase tracking-wider text-muted-foreground"
                   >
-                    Name or Nickname
+                    Trooper Name
                   </label>
                   <div className="relative mt-1.5">
                     <User className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
