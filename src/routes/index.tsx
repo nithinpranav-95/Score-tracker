@@ -966,7 +966,14 @@ function GameApp() {
         {tab === "ranks" && (
           <RanksView players={players} sessions={sessions} openPlayer={setProfileId} />
         )}
-        {tab === "history" && <HistoryView sessions={sessions} onEdit={setEditingSession} />}
+        {tab === "history" && (
+          <HistoryView
+            sessions={sessions}
+            onEdit={setEditingSession}
+            isSignedUp={Boolean(authUser && authUser.email)}
+            onRequireEmail={() => setShowEmailPrompt(true)}
+          />
+        )}
       </main>
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur md:hidden">
         <div className="mx-auto flex max-w-xl justify-around px-3 py-2">
@@ -2874,9 +2881,13 @@ function CustomStatsTooltip({
 function HistoryView({
   sessions,
   onEdit,
+  isSignedUp,
+  onRequireEmail,
 }: {
   sessions: PastSession[];
   onEdit: (s: PastSession) => void;
+  isSignedUp: boolean;
+  onRequireEmail?: () => void;
 }) {
   const rows = sessions.map((s) => ({
     key: s.id,
@@ -2908,17 +2919,30 @@ function HistoryView({
                 <p className="text-sm text-muted-foreground">{x.d}</p>
               </div>
               <p className="font-bold text-primary">{x.s}</p>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={`Edit ${x.g} scores`}
-                onClick={() => {
-                  const s = sessions.find((y) => y.id === x.key);
-                  if (s) onEdit(s);
-                }}
-              >
-                <Pencil className="size-4" />
-              </Button>
+              {isSignedUp ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Edit ${x.g} scores`}
+                  onClick={() => {
+                    const s = sessions.find((y) => y.id === x.key);
+                    if (s) onEdit(s);
+                  }}
+                >
+                  <Pencil className="size-4" />
+                </Button>
+              ) : onRequireEmail ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Sign up with email to edit session history"
+                  aria-label={`Sign up to edit ${x.g} scores`}
+                  onClick={onRequireEmail}
+                  className="opacity-70 hover:opacity-100"
+                >
+                  <Pencil className="size-4 text-muted-foreground" />
+                </Button>
+              ) : null}
             </div>
           ))}
         </div>
