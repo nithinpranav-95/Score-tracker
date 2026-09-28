@@ -2189,14 +2189,22 @@ function LiveSession({
   const providedIds = Object.keys(entries);
   const hasAnyEntry = providedIds.length > 0;
   
-  const avgCount = hasAnyEntry ? providedIds.length : players.length;
-  const avgSum = hasAnyEntry
-    ? liveAverages.filter(p => providedIds.includes(p.id)).reduce((sum, p) => sum + p.liveTotal, 0)
-    : liveAverages.reduce((sum, p) => sum + p.liveTotal, 0);
-  const liveAvg = avgCount > 0 ? (avgSum / avgCount).toFixed(1) : "0.0";
+  let avgLabel = "Group avg";
+  let avgCount = 0;
+  let avgSum = 0;
 
-  const roundAvgSum = providedIds.reduce((sum, id) => sum + entries[id], 0);
-  const roundAvg = providedIds.length > 0 ? (roundAvgSum / providedIds.length).toFixed(1) : "0.0";
+  if (hasAnyEntry) {
+    avgLabel = "Round avg";
+    avgCount = providedIds.length;
+    avgSum = providedIds.reduce((sum, id) => sum + entries[id], 0);
+  } else {
+    avgLabel = "Group avg";
+    const playersWithPoints = players.filter(p => p.score !== 0);
+    avgCount = playersWithPoints.length > 0 ? playersWithPoints.length : players.length;
+    avgSum = (playersWithPoints.length > 0 ? playersWithPoints : players).reduce((sum, p) => sum + p.score, 0);
+  }
+  
+  const displayAvg = avgCount > 0 ? (avgSum / avgCount).toFixed(1) : "0.0";
 
   return (
     <main className="min-h-screen bg-background pb-28">
@@ -2352,20 +2360,12 @@ function LiveSession({
               </div>
             ))}
         </div>
-        <div className="mt-2 rounded-xl bg-secondary px-4 py-2 flex items-center justify-center gap-6 text-center">
-          <div>
-            <span className="text-xs font-bold text-muted-foreground">Avg Total: </span>
-            <span className="text-sm font-black tabular-nums">{liveAvg}</span>
-            {hasAnyEntry && <span className="ml-1 text-[10px] text-muted-foreground">({providedIds.length} players)</span>}
-          </div>
-          {hasAnyEntry && (
-            <div>
-              <span className="text-xs font-bold text-muted-foreground">Round Avg: </span>
-              <span className="text-sm font-black tabular-nums text-primary">
-                {roundAvgSum > 0 ? `+${roundAvg}` : roundAvg}
-              </span>
-            </div>
-          )}
+        <div className="mt-2 rounded-xl bg-secondary px-4 py-2 flex items-center justify-center gap-2 text-center">
+          <span className="text-xs font-bold text-muted-foreground">{avgLabel}: </span>
+          <span className={`text-sm font-black tabular-nums ${hasAnyEntry ? "text-primary" : ""}`}>
+            {hasAnyEntry && avgSum > 0 ? `+${displayAvg}` : displayAvg}
+          </span>
+          <span className="ml-1 text-[10px] text-muted-foreground">({avgCount} players)</span>
         </div>
 
         {benchPlayers.length > 0 && onAddBenchPlayer && (
