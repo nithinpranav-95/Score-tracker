@@ -1,6 +1,6 @@
-# Game Night Tracker
+# Score Tracker while playing with friends
 
-Build a game score-tracking app for friend groups with the following features:
+Building a game score-tracking app for friend groups with the following features:
 
 Core functionality
 
