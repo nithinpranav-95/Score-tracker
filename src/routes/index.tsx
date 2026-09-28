@@ -720,6 +720,15 @@ function GameApp() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Link
+              to="/auth"
+              search={{ mode: "create" }}
+              className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-xs font-bold text-primary-foreground shadow-md transition hover:brightness-110 active:scale-95"
+            >
+              <Users className="size-3.5" />
+              <span>Create Troop</span>
+            </Link>
+
             <button
               onClick={() => setTab("players")}
               aria-label="Friends and Players"
@@ -827,7 +836,6 @@ function GameApp() {
             games={games}
             players={players}
             start={handleSelectGame}
-            remove={handleRemoveGame}
             openNew={() => setNewGame(true)}
             openPlayer={setProfileId}
             goToPlayers={() => setTab("players")}
@@ -1556,7 +1564,6 @@ function PlayView({
   games,
   players,
   start,
-  remove,
   openNew,
   openPlayer,
   goToPlayers,
@@ -1564,7 +1571,6 @@ function PlayView({
   games: Game[];
   players: Player[];
   start: (g: Game) => void;
-  remove: (g: Game) => void;
   openNew: () => void;
   openPlayer: (id: string) => void;
   goToPlayers?: () => void;
@@ -1575,34 +1581,22 @@ function PlayView({
         <h2 className="font-heading text-3xl font-bold">Start a game</h2>
         <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">
           {games.map((game, i) => (
-            <div key={game.id} className="group relative">
-              <button
-                onClick={() => start(game)}
-                className="min-h-44 w-full rounded-[1.5rem] border border-border bg-card p-5 text-left transition hover:-translate-y-1 hover:border-primary"
+            <button
+              key={game.id}
+              onClick={() => start(game)}
+              className="group min-h-44 w-full rounded-[1.5rem] border border-border bg-card p-5 text-left transition hover:-translate-y-1 hover:border-primary"
+            >
+              <span
+                className={`grid size-14 place-items-center rounded-2xl text-background ${i % 3 === 0 ? "bg-primary" : i % 3 === 1 ? "bg-sun" : "bg-mint"}`}
               >
-                <span
-                  className={`grid size-14 place-items-center rounded-2xl text-background ${i % 3 === 0 ? "bg-primary" : i % 3 === 1 ? "bg-sun" : "bg-mint"}`}
-                >
-                  <Gamepad2 />
-                </span>
-                <h3 className="mt-5 font-heading text-2xl font-bold">{game.name}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {game.scoring_type.replace("_", " · ")} · {game.high_score_wins ? "High" : "Low"}{" "}
-                  wins
-                </p>
-              </button>
-              <button
-                type="button"
-                aria-label={`Remove ${game.name}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  remove(game);
-                }}
-                className="absolute right-2 top-2 grid size-8 place-items-center rounded-lg text-muted-foreground opacity-70 transition hover:bg-secondary hover:text-destructive focus:opacity-100 group-hover:opacity-100"
-              >
-                <Trash2 className="size-4" />
-              </button>
-            </div>
+                <Gamepad2 />
+              </span>
+              <h3 className="mt-5 font-heading text-2xl font-bold">{game.name}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {game.scoring_type.replace("_", " · ")} · {game.high_score_wins ? "High" : "Low"}{" "}
+                wins
+              </p>
+            </button>
           ))}
           <button
             onClick={openNew}
