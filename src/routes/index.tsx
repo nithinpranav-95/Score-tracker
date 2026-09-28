@@ -693,10 +693,10 @@ function GameApp() {
             </span>
             <div>
               <p className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
-                {authUser ? `Trooper · ${authUser.name}` : "Game Night"}
+                {authUser ? `Troop · ${authUser.troop ?? TROOP_NAME}` : "Game Night"}
               </p>
               <h1 className="font-heading text-xl font-bold leading-tight">
-                {authUser?.troop ?? TROOP_NAME}
+                {authUser ? authUser.name : "ScoreUp"}
               </h1>
             </div>
           </button>
