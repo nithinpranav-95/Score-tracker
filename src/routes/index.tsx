@@ -46,6 +46,7 @@ import {
   parseQuoteAuth,
   encodeQuoteAuth,
   createTroop,
+  setCurrentUser,
   type AuthUser,
   TROOP_NAME,
 } from "@/lib/auth";
@@ -277,6 +278,7 @@ function GameApp() {
   const [newGame, setNewGame] = useState(false);
   const [addPlayer, setAddPlayer] = useState(false);
   const [showCreateTroop, setShowCreateTroop] = useState(false);
+  const [showEmailPrompt, setShowEmailPrompt] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<PastSession[]>([]);
@@ -285,6 +287,36 @@ function GameApp() {
   const [changePasswordTarget, setChangePasswordTarget] = useState<Player | null>(null);
 
   const [hydrated, setHydrated] = useState(false);
+
+  // Restore ongoing game session for active troop when player visits/logs in
+  useEffect(() => {
+    if (!authUser || !hydrated) return;
+    const currentTroop = authUser.troop ?? TROOP_NAME;
+    const activeData = loadActiveGameSession(currentTroop);
+    if (activeData && activeData.game) {
+      setLiveGame(activeData.game);
+      setLivePlayers(activeData.livePlayers || []);
+      setRound(activeData.round || 1);
+      setRoundHistory(activeData.roundHistory || []);
+    }
+  }, [authUser, hydrated]);
+
+  function handleTriggerAddPlayer() {
+    if (authUser && !authUser.email) {
+      setShowEmailPrompt(true);
+    } else {
+      setAddPlayer(true);
+    }
+  }
+
+  async function handleSaveUserEmail(email: string) {
+    if (authUser) {
+      const updatedUser: AuthUser = { ...authUser, email };
+      setCurrentUser(updatedUser);
+    }
+    setShowEmailPrompt(false);
+    setAddPlayer(true);
+  }
 
   // Load shared data from cloud DB on mount, with automatic player migration and recovery
   useEffect(() => {
@@ -551,26 +583,62 @@ function GameApp() {
 
   const [roundHistory, setRoundHistory] = useState<Record<string, number>[]>([]);
   function startSessionWithPlayers(game: Game, selectedPlayers: Player[]) {
+    const initialLive = selectedPlayers.map((p) => ({ ...p, score: 0 }));
     setLiveGame(game);
-    setLivePlayers(selectedPlayers.map((p) => ({ ...p, score: 0 })));
+    setLivePlayers(initialLive);
     setRound(1);
     setRoundHistory([]);
     setSetupGame(null);
+
+    const currentTroop = authUser?.troop ?? TROOP_NAME;
+    saveActiveGameSession(currentTroop, {
+      game,
+      livePlayers: initialLive,
+      round: 1,
+      roundHistory: [],
+    });
   }
 
   function addBenchPlayerToLive(player: Player) {
     setLivePlayers((list) => {
       if (list.some((p) => p.id === player.id)) return list;
-      return [...list, { ...player, score: 0 }];
+      const updated = [...list, { ...player, score: 0 }];
+      const currentTroop = authUser?.troop ?? TROOP_NAME;
+      if (liveGame) {
+        saveActiveGameSession(currentTroop, {
+          game: liveGame,
+          livePlayers: updated,
+          round,
+          roundHistory,
+        });
+      }
+      return updated;
     });
   }
 
   function saveRound(entries: Record<string, number>) {
-    setLivePlayers((list) => list.map((p) => ({ ...p, score: p.score + (entries[p.id] ?? 0) })));
+    setLivePlayers((list) => {
+      const updatedPlayers = list.map((p) => ({ ...p, score: p.score + (entries[p.id] ?? 0) }));
+      const updatedHistory = [...roundHistory, entries];
+      const updatedRound = round + 1;
+      const currentTroop = authUser?.troop ?? TROOP_NAME;
+      if (liveGame) {
+        saveActiveGameSession(currentTroop, {
+          game: liveGame,
+          livePlayers: updatedPlayers,
+          round: updatedRound,
+          roundHistory: updatedHistory,
+        });
+      }
+      return updatedPlayers;
+    });
     setRoundHistory((h) => [...h, entries]);
     setRound((r) => r + 1);
   }
+
   async function endGame() {
+    const currentTroop = authUser?.troop ?? TROOP_NAME;
+    clearActiveGameSession(currentTroop);
     if (liveGame) {
       const ordered = [...livePlayers].sort((a, b) =>
         liveGame.high_score_wins ? b.score - a.score : a.score - b.score,
@@ -842,9 +910,11 @@ function GameApp() {
             start={handleSelectGame}
             openNew={() => setNewGame(true)}
             openPlayer={setProfileId}
-            openAddPlayer={() => setAddPlayer(true)}
+            openAddPlayer={handleTriggerAddPlayer}
             openCreateTroop={() => setShowCreateTroop(true)}
             goToPlayers={() => setTab("players")}
+            currentUserId={currentPlayerId}
+            authUserName={authUser?.name}
           />
         )}
         {tab === "players" && (
@@ -884,7 +954,7 @@ function GameApp() {
           players={players}
           close={() => setSetupGame(null)}
           start={startSessionWithPlayers}
-          openAddPlayer={() => setAddPlayer(true)}
+          openAddPlayer={handleTriggerAddPlayer}
         />
       )}
       {newGame && (
@@ -952,6 +1022,12 @@ function GameApp() {
       )}
       {showCreateTroop && (
         <CreateTroopModal close={() => setShowCreateTroop(false)} currentUser={authUser} />
+      )}
+      {showEmailPrompt && (
+        <EmailRequiredModal
+          close={() => setShowEmailPrompt(false)}
+          onSaveEmail={handleSaveUserEmail}
+        />
       )}
     </div>
   );
@@ -1612,6 +1688,8 @@ function PlayView({
   openAddPlayer,
   openCreateTroop,
   goToPlayers,
+  currentUserId,
+  authUserName,
 }: {
   games: Game[];
   players: Player[];
@@ -1621,7 +1699,21 @@ function PlayView({
   openAddPlayer?: () => void;
   openCreateTroop?: () => void;
   goToPlayers?: () => void;
+  currentUserId?: string;
+  authUserName?: string;
 }) {
+  const sortedPlayers = [...players].sort((a, b) => {
+    const aIsMe =
+      (currentUserId && a.id === currentUserId) ||
+      (authUserName && a.display_name.toLowerCase() === authUserName.toLowerCase());
+    const bIsMe =
+      (currentUserId && b.id === currentUserId) ||
+      (authUserName && b.display_name.toLowerCase() === authUserName.toLowerCase());
+    if (aIsMe && !bIsMe) return -1;
+    if (!aIsMe && bIsMe) return 1;
+    return 0;
+  });
+
   return (
     <>
       <section>
@@ -1698,7 +1790,7 @@ function PlayView({
           </div>
         ) : (
           <div className="mt-5 space-y-2.5">
-            {players.map((p) => {
+            {sortedPlayers.map((p) => {
               const animalInfo = spiritAnimals[p.spirit_animal] ?? {
                 emoji: animals[p.spirit_animal] ?? "🦊",
                 title: p.spirit_animal,
@@ -3070,6 +3162,120 @@ function CreateTroopModal({
             className="mt-6 h-12 w-full rounded-xl bg-primary font-bold text-primary-foreground shadow-lg hover:brightness-105"
           >
             {isSubmitting ? "Creating Troop..." : "Create Troop & Start"}
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+const ACTIVE_SESSION_PREFIX = "scoreup_ongoing_game_";
+
+type ActiveSessionData = {
+  game: Game;
+  livePlayers: LivePlayer[];
+  round: number;
+  roundHistory: Record<string, number>[];
+};
+
+function loadActiveGameSession(troopName: string): ActiveSessionData | null {
+  if (typeof window === "undefined" || !troopName) return null;
+  try {
+    const raw = localStorage.getItem(ACTIVE_SESSION_PREFIX + troopName.toLowerCase());
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveActiveGameSession(troopName: string, data: ActiveSessionData) {
+  if (typeof window === "undefined" || !troopName) return;
+  try {
+    localStorage.setItem(ACTIVE_SESSION_PREFIX + troopName.toLowerCase(), JSON.stringify(data));
+  } catch (e) {
+    console.debug("Failed to save active session:", e);
+  }
+}
+
+function clearActiveGameSession(troopName: string) {
+  if (typeof window === "undefined" || !troopName) return;
+  try {
+    localStorage.removeItem(ACTIVE_SESSION_PREFIX + troopName.toLowerCase());
+  } catch (e) {
+    console.debug("Failed to clear active session:", e);
+  }
+}
+
+function EmailRequiredModal({
+  close,
+  onSaveEmail,
+}: {
+  close: () => void;
+  onSaveEmail: (email: string) => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = email.trim();
+    if (!trimmed || !trimmed.includes("@")) {
+      setError("Please enter a valid email address");
+      return;
+    }
+    onSaveEmail(trimmed);
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] grid place-items-end bg-background/85 p-4 backdrop-blur-sm sm:place-items-center">
+      <div className="w-full max-w-md rounded-[1.5rem] border border-border bg-card p-6 shadow-2xl">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Mail className="size-6 text-primary" />
+            <h2 className="font-heading text-xl font-bold">Email Required</h2>
+          </div>
+          <Button onClick={close} variant="ghost" size="icon" aria-label="Close">
+            <X />
+          </Button>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground sm:text-sm">
+          Only troopers with an email address can add new players to this troop. Enter your email to
+          continue.
+        </p>
+
+        {error && (
+          <div className="mt-3 rounded-xl border border-destructive/50 bg-destructive/10 p-3 text-xs font-semibold text-destructive">
+            ⚠️ {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          <div>
+            <label
+              htmlFor="prompt-email"
+              className="block text-xs font-bold uppercase tracking-wider text-muted-foreground"
+            >
+              Your Email Address
+            </label>
+            <div className="relative mt-1.5">
+              <Mail className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                id="prompt-email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="e.g. player@example.com"
+                className="h-12 w-full rounded-xl border border-border bg-secondary/80 pl-10 pr-4 text-sm font-semibold outline-none transition focus:border-primary focus:ring-1 focus:ring-primary"
+                autoFocus
+              />
+            </div>
+          </div>
+          <Button
+            type="submit"
+            className="h-12 w-full rounded-xl bg-primary font-bold text-primary-foreground shadow-lg hover:brightness-105"
+          >
+            Save Email & Add Troopers
           </Button>
         </form>
       </div>
