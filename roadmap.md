@@ -6,3 +6,4 @@
 - [x] Allow scores to be typed during a live game
 - [x] Show current player ranks during a live game
 - [x] Let players add their name and open a profile with their scores
+- [x] Remove legacy browser score restoration so the shared reset remains authoritative

@@ -49,6 +49,7 @@ export type Database = {
           played_at: string
           results: Json
           rounds: number
+          rounds_data: Json
         }
         Insert: {
           created_at?: string
@@ -57,6 +58,7 @@ export type Database = {
           played_at?: string
           results?: Json
           rounds?: number
+          rounds_data?: Json
         }
         Update: {
           created_at?: string
@@ -65,6 +67,7 @@ export type Database = {
           played_at?: string
           results?: Json
           rounds?: number
+          rounds_data?: Json
         }
         Relationships: []
       }
@@ -223,6 +226,7 @@ export type Database = {
           name: string
           quote: string | null
           spirit_animal: string
+          troop: string
         }
         Insert: {
           created_at?: string
@@ -230,6 +234,7 @@ export type Database = {
           name: string
           quote?: string | null
           spirit_animal?: string
+          troop?: string
         }
         Update: {
           created_at?: string
@@ -237,6 +242,7 @@ export type Database = {
           name?: string
           quote?: string | null
           spirit_animal?: string
+          troop?: string
         }
         Relationships: []
       }
@@ -347,6 +353,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      troops: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
       }
     }
     Views: {

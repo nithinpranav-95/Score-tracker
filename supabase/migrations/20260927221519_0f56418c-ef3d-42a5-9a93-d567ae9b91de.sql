@@ -1,0 +1,1 @@
+ALTER TABLE public.game_results ADD COLUMN rounds_data jsonb NOT NULL DEFAULT '[]'::jsonb;

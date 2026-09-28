@@ -5,6 +5,7 @@ import {
   BarChart3,
   Check,
   CirclePlus,
+  Crown,
   Gamepad2,
   History,
   KeyRound,
@@ -44,6 +45,7 @@ import {
   parseQuoteAuth,
   encodeQuoteAuth,
   type AuthUser,
+  TROOP_NAME,
 } from "@/lib/auth";
 import { AuthPage } from "./auth";
 
@@ -86,8 +88,10 @@ type PastSession = {
   id: string;
   gameName: string;
   date: string;
+  playedAt: string;
   rounds: number;
   results: { playerId: string; name: string; score: number; rank: number }[];
+  roundsData: Record<string, number>[];
 };
 
 type AnimalInfo = {
@@ -176,6 +180,16 @@ const animals: Record<string, string> = Object.fromEntries(
   Object.entries(spiritAnimals).map(([k, v]) => [k, v.emoji]),
 );
 const demoPlayers: Player[] = [];
+const REMOVED_GAMES_KEY = "scoreup_removed_games";
+function loadRemovedGames(): string[] {
+  try {
+    const raw = localStorage.getItem(REMOVED_GAMES_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
 const demoGames: Game[] = [
   { id: "sevens", name: "Sevens", scoring_type: "points", high_score_wins: false, accent: "lime" },
   { id: "poker", name: "Poker", scoring_type: "points", high_score_wins: true, accent: "yellow" },
@@ -253,6 +267,11 @@ function GameApp() {
   const [livePlayers, setLivePlayers] = useState<LivePlayer[]>([]);
   const [round, setRound] = useState(1);
   const [celebrate, setCelebrate] = useState(false);
+  const [winnerInfo, setWinnerInfo] = useState<{
+    gameName: string;
+    rounds: number;
+    results: PastSession["results"];
+  } | null>(null);
   const [newGame, setNewGame] = useState(false);
   const [addPlayer, setAddPlayer] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
@@ -264,7 +283,7 @@ function GameApp() {
 
   const [hydrated, setHydrated] = useState(false);
 
-  // Load shared data from cloud DB on mount, with automatic local storage migration and recovery
+  // Load shared data from cloud DB on mount, with automatic player migration and recovery
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -306,8 +325,10 @@ function GameApp() {
               day: "numeric",
               month: "short",
             }),
+            playedAt: r.played_at,
             rounds: r.rounds,
             results: (r.results as PastSession["results"]) ?? [],
+            roundsData: (r.rounds_data as PastSession["roundsData"]) ?? [],
           }));
         }
       } catch (err) {
@@ -340,20 +361,13 @@ function GameApp() {
         }
       }
 
-      // Check localStorage for sessions
-      let finalSessions = cloudSessions;
-      if (finalSessions.length === 0) {
-        try {
-          const savedSessions = localStorage.getItem("scoreup_sessions");
-          if (savedSessions) {
-            const parsed = JSON.parse(savedSessions);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              finalSessions = parsed;
-            }
-          }
-        } catch (e) {
-          console.debug("Failed to read local sessions:", e);
-        }
+      // Cloud results are the only score-history source. Remove legacy browser copies
+      // so a shared reset cannot be undone by stale data on an individual device.
+      const finalSessions = cloudSessions;
+      try {
+        localStorage.removeItem("scoreup_sessions");
+      } catch (e) {
+        console.debug("Failed to clear legacy local sessions:", e);
       }
 
       // Recovery: If players list is still empty but session records exist, recover players from match history!
@@ -393,28 +407,24 @@ function GameApp() {
         }
       }
 
+      const removedGames = loadRemovedGames();
       if (cloudGames.length > 0) {
-        setGames([...demoGames, ...cloudGames]);
+        setGames([...demoGames, ...cloudGames].filter((g) => !removedGames.includes(g.id)));
       } else {
         try {
           const savedGames = localStorage.getItem("scoreup_games");
           if (savedGames) {
             const parsed = JSON.parse(savedGames);
-            if (Array.isArray(parsed) && parsed.length > 0) setGames(parsed);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setGames(parsed.filter((g: Game) => !removedGames.includes(g.id)));
+            }
           }
         } catch (e) {
           console.debug(e);
         }
       }
 
-      if (finalSessions.length > 0) {
-        setSessions(finalSessions);
-        try {
-          localStorage.setItem("scoreup_sessions", JSON.stringify(finalSessions));
-        } catch (e) {
-          console.debug(e);
-        }
-      }
+      setSessions(finalSessions);
 
       setHydrated(true);
     })();
@@ -442,15 +452,6 @@ function GameApp() {
       console.debug(e);
     }
   }, [games, hydrated]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      localStorage.setItem("scoreup_sessions", JSON.stringify(sessions));
-    } catch (e) {
-      console.debug(e);
-    }
-  }, [sessions, hydrated]);
 
   // Ensure logged-in user is recognized in players list
   useEffect(() => {
@@ -522,10 +523,34 @@ function GameApp() {
     if (error) console.debug("Failed to delete player:", error);
   }
 
+  async function handleRemoveGame(game: Game) {
+    const isCustom = /^[0-9a-f]{8}-/i.test(game.id);
+    if (
+      !window.confirm(
+        `Remove ${game.name} from your games? Finished games already in history stay untouched.`,
+      )
+    )
+      return;
+    setGames((prev) => prev.filter((g) => g.id !== game.id));
+    if (isCustom) {
+      const { error } = await supabase.from("custom_games").delete().eq("id", game.id);
+      if (error) console.debug("Failed to delete game:", error);
+    } else {
+      try {
+        const nextRemoved = Array.from(new Set([...loadRemovedGames(), game.id]));
+        localStorage.setItem(REMOVED_GAMES_KEY, JSON.stringify(nextRemoved));
+      } catch (e) {
+        console.debug(e);
+      }
+    }
+  }
+
+  const [roundHistory, setRoundHistory] = useState<Record<string, number>[]>([]);
   function startSessionWithPlayers(game: Game, selectedPlayers: Player[]) {
     setLiveGame(game);
     setLivePlayers(selectedPlayers.map((p) => ({ ...p, score: 0 })));
     setRound(1);
+    setRoundHistory([]);
     setSetupGame(null);
   }
 
@@ -536,11 +561,12 @@ function GameApp() {
     });
   }
 
-  function adjust(id: string, by: number) {
-    setLivePlayers((list) => list.map((p) => (p.id === id ? { ...p, score: p.score + by } : p)));
-  }
-  function setScore(id: string, score: number) {
-    setLivePlayers((list) => list.map((p) => (p.id === id ? { ...p, score } : p)));
+  function saveRound(entries: Record<string, number>) {
+    setLivePlayers((list) =>
+      list.map((p) => ({ ...p, score: p.score + (entries[p.id] ?? 0) })),
+    );
+    setRoundHistory((h) => [...h, entries]);
+    setRound((r) => r + 1);
   }
   async function endGame() {
     if (liveGame) {
@@ -558,22 +584,58 @@ function GameApp() {
         id: crypto.randomUUID(),
         gameName: liveGame.name,
         date: now.toLocaleDateString(undefined, { day: "numeric", month: "short" }),
+        playedAt: now.toISOString(),
         rounds: round,
         results,
+        roundsData: roundHistory,
       };
       const { data, error } = await supabase
         .from("game_results")
-        .insert({ game_name: liveGame.name, rounds: round, results })
+        .insert({
+          game_name: liveGame.name,
+          rounds: round,
+          results,
+          rounds_data: roundHistory,
+        })
         .select()
         .single();
       if (error) console.debug("Failed to save game result:", error);
       if (data) session.id = data.id;
       setSessions((list) => [session, ...list]);
+      setWinnerInfo({ gameName: liveGame.name, rounds: round, results });
     }
     playVictory();
     setCelebrate(true);
     setTimeout(() => setCelebrate(false), 2800);
     setLiveGame(null);
+  }
+  const [editingSession, setEditingSession] = useState<PastSession | null>(null);
+  async function handleUpdateSession(
+    sessionId: string,
+    roundsData: Record<string, number>[],
+  ) {
+    const session = sessions.find((s) => s.id === sessionId);
+    if (!session) return;
+    const game = games.find((g) => g.name === session.gameName);
+    const highWins = game?.high_score_wins ?? true;
+    const ordered = session.results
+      .map((r) => ({
+        ...r,
+        score: roundsData.reduce((sum, rd) => sum + (rd[r.playerId] ?? 0), 0),
+      }))
+      .sort((a, b) => (highWins ? b.score - a.score : a.score - b.score))
+      .map((r, i) => ({ ...r, rank: i + 1 }));
+    const { error } = await supabase
+      .from("game_results")
+      .update({ results: ordered, rounds_data: roundsData })
+      .eq("id", sessionId);
+    if (error) console.debug("Failed to update game result:", error);
+    setSessions((list) =>
+      list.map((s) =>
+        s.id === sessionId ? { ...s, results: ordered, roundsData } : s,
+      ),
+    );
+    setEditingSession(null);
   }
   const nav = [
     { id: "play", icon: Gamepad2, label: "Play" },
@@ -589,9 +651,7 @@ function GameApp() {
         players={livePlayers}
         allSquadPlayers={players}
         round={round}
-        setRound={setRound}
-        adjust={adjust}
-        setScore={setScore}
+        saveRound={saveRound}
         end={endGame}
         close={() => setLiveGame(null)}
         onAddBenchPlayer={addBenchPlayerToLive}
@@ -620,6 +680,14 @@ function GameApp() {
         </div>
       )}
       {celebrate && <Confetti />}
+      {winnerInfo && <WinnerOverlay info={winnerInfo} onDone={() => setWinnerInfo(null)} />}
+      {editingSession && (
+        <EditSessionModal
+          session={editingSession}
+          close={() => setEditingSession(null)}
+          save={handleUpdateSession}
+        />
+      )}
       <header className="relative z-20 border-b border-border/80 bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 md:px-7">
           <button
@@ -632,9 +700,9 @@ function GameApp() {
             </span>
             <div>
               <p className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
-                Game Night
+                {authUser ? `Trooper · ${authUser.name}` : "Game Night"}
               </p>
-              <h1 className="font-heading text-2xl font-bold leading-tight">ScoreUp</h1>
+              <h1 className="font-heading text-xl font-bold leading-tight">{authUser?.troop ?? TROOP_NAME}</h1>
             </div>
           </button>
 
@@ -717,22 +785,6 @@ function GameApp() {
                         type="button"
                         onClick={() => {
                           setShowAccountMenu(false);
-                          setChangePasswordTarget({
-                            id: authUser.id,
-                            display_name: authUser.name,
-                            spirit_animal: authUser.spirit_animal,
-                            quote: authUser.quote,
-                          });
-                        }}
-                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-foreground transition hover:bg-secondary"
-                      >
-                        <KeyRound className="size-3.5 text-primary" />
-                        <span>Change Password</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowAccountMenu(false);
                           authSignOut();
                         }}
                         className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-destructive transition hover:bg-destructive/10"
@@ -771,6 +823,7 @@ function GameApp() {
             games={games}
             players={players}
             start={handleSelectGame}
+            remove={handleRemoveGame}
             openNew={() => setNewGame(true)}
             openPlayer={setProfileId}
             goToPlayers={() => setTab("players")}
@@ -789,7 +842,7 @@ function GameApp() {
           <RanksView players={players} sessions={sessions} openPlayer={setProfileId} />
         )}
         {tab === "stats" && <StatsView players={players} sessions={sessions} />}
-        {tab === "history" && <HistoryView sessions={sessions} />}
+        {tab === "history" && <HistoryView sessions={sessions} onEdit={setEditingSession} />}
       </main>
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur md:hidden">
         <div className="mx-auto flex max-w-xl justify-around px-3 py-2">
@@ -1499,6 +1552,7 @@ function PlayView({
   games,
   players,
   start,
+  remove,
   openNew,
   openPlayer,
   goToPlayers,
@@ -1506,6 +1560,7 @@ function PlayView({
   games: Game[];
   players: Player[];
   start: (g: Game) => void;
+  remove: (g: Game) => void;
   openNew: () => void;
   openPlayer: (id: string) => void;
   goToPlayers?: () => void;
@@ -1516,22 +1571,34 @@ function PlayView({
         <h2 className="font-heading text-3xl font-bold">Start a game</h2>
         <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">
           {games.map((game, i) => (
-            <button
-              key={game.id}
-              onClick={() => start(game)}
-              className="group min-h-44 rounded-[1.5rem] border border-border bg-card p-5 text-left transition hover:-translate-y-1 hover:border-primary"
-            >
-              <span
-                className={`grid size-14 place-items-center rounded-2xl text-background ${i % 3 === 0 ? "bg-primary" : i % 3 === 1 ? "bg-sun" : "bg-mint"}`}
+            <div key={game.id} className="group relative">
+              <button
+                onClick={() => start(game)}
+                className="min-h-44 w-full rounded-[1.5rem] border border-border bg-card p-5 text-left transition hover:-translate-y-1 hover:border-primary"
               >
-                <Gamepad2 />
-              </span>
-              <h3 className="mt-5 font-heading text-2xl font-bold">{game.name}</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {game.scoring_type.replace("_", " · ")} · {game.high_score_wins ? "High" : "Low"}{" "}
-                wins
-              </p>
-            </button>
+                <span
+                  className={`grid size-14 place-items-center rounded-2xl text-background ${i % 3 === 0 ? "bg-primary" : i % 3 === 1 ? "bg-sun" : "bg-mint"}`}
+                >
+                  <Gamepad2 />
+                </span>
+                <h3 className="mt-5 font-heading text-2xl font-bold">{game.name}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {game.scoring_type.replace("_", " · ")} ·{" "}
+                  {game.high_score_wins ? "High" : "Low"} wins
+                </p>
+              </button>
+              <button
+                type="button"
+                aria-label={`Remove ${game.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  remove(game);
+                }}
+                className="absolute right-2 top-2 grid size-8 place-items-center rounded-lg text-muted-foreground opacity-70 transition hover:bg-secondary hover:text-destructive focus:opacity-100 group-hover:opacity-100"
+              >
+                <Trash2 className="size-4" />
+              </button>
+            </div>
           ))}
           <button
             onClick={openNew}
@@ -1840,9 +1907,7 @@ function LiveSession({
   players,
   allSquadPlayers,
   round,
-  setRound,
-  adjust,
-  setScore,
+  saveRound,
   end,
   close,
   onAddBenchPlayer,
@@ -1851,13 +1916,20 @@ function LiveSession({
   players: LivePlayer[];
   allSquadPlayers?: Player[];
   round: number;
-  setRound: React.Dispatch<React.SetStateAction<number>> | ((fn: (r: number) => number) => void);
-  adjust: (id: string, by: number) => void;
-  setScore: (id: string, score: number) => void;
+  saveRound: (entries: Record<string, number>) => void;
   end: () => void;
   close: () => void;
   onAddBenchPlayer?: (p: Player) => void;
 }) {
+  const [entries, setEntries] = useState<Record<string, number>>({});
+  const adjustEntry = (id: string, by: number) =>
+    setEntries((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + by }));
+  const setEntry = (id: string, value: number) =>
+    setEntries((prev) => ({ ...prev, [id]: value }));
+  const handleSaveRound = () => {
+    saveRound(entries);
+    setEntries({});
+  };
   const sorted = [...players].sort((a, b) =>
     game.high_score_wins ? b.score - a.score : a.score - b.score,
   );
@@ -1899,12 +1971,13 @@ function LiveSession({
           </div>
         </div>
         <div className="mb-3 flex items-center justify-between px-1">
-          <h2 className="font-heading text-xl font-bold">Current ranking</h2>
-          <p className="text-xs font-bold text-muted-foreground">TYPE OR TAP TO SCORE</p>
+          <h2 className="font-heading text-xl font-bold">Round {round} scores</h2>
+          <p className="text-xs font-bold text-muted-foreground">ENTER THIS ROUND'S POINTS</p>
         </div>
         <div className="space-y-3">
           {players.map((p: LivePlayer) => {
             const rank = rankById.get(p.id);
+            const entry = entries[p.id] ?? 0;
             return (
               <div
                 key={p.id}
@@ -1919,11 +1992,22 @@ function LiveSession({
                 <span className="grid size-11 place-items-center rounded-xl bg-secondary text-2xl">
                   {animals[p.spirit_animal]}
                 </span>
-                <p className="min-w-0 truncate font-heading text-lg font-bold">{p.display_name}</p>
+                <div className="min-w-0">
+                  <p className="truncate font-heading text-lg font-bold">{p.display_name}</p>
+                  <p className="text-xs font-bold text-muted-foreground tabular-nums">
+                    Total {p.score}
+                    {entry !== 0 && (
+                      <span className="text-primary">
+                        {" "}
+                        {entry > 0 ? `+${entry}` : entry} → {p.score + entry}
+                      </span>
+                    )}
+                  </p>
+                </div>
                 <div className="col-span-3 grid grid-cols-[3rem_1fr_3rem] gap-2 sm:col-span-1 sm:contents">
                   <Button
                     aria-label={`Subtract from ${p.display_name}`}
-                    onClick={() => adjust(p.id, -1)}
+                    onClick={() => adjustEntry(p.id, -1)}
                     variant="secondary"
                     size="icon"
                     className="size-12 rounded-xl"
@@ -1931,16 +2015,19 @@ function LiveSession({
                     <Minus />
                   </Button>
                   <input
-                    aria-label={`${p.display_name} score`}
+                    aria-label={`${p.display_name} round score`}
                     type="number"
                     inputMode="numeric"
-                    value={p.score}
-                    onChange={(event) => setScore(p.id, Number(event.target.value) || 0)}
+                    placeholder="0"
+                    value={entries[p.id] ?? ""}
+                    onChange={(event) =>
+                      setEntry(p.id, event.target.value === "" ? 0 : Number(event.target.value))
+                    }
                     className="h-12 min-w-0 rounded-xl border border-border bg-secondary px-2 text-center text-2xl font-black tabular-nums outline-none focus:border-primary focus:ring-2 focus:ring-primary/30"
                   />
                   <Button
                     aria-label={`Add to ${p.display_name}`}
-                    onClick={() => adjust(p.id, 1)}
+                    onClick={() => adjustEntry(p.id, 1)}
                     size="icon"
                     className="size-12 rounded-xl bg-primary text-primary-foreground"
                   >
@@ -1974,10 +2061,10 @@ function LiveSession({
       </div>
       <div className="fixed inset-x-0 bottom-0 border-t border-border bg-surface p-4">
         <Button
-          onClick={() => setRound((r: number) => r + 1)}
+          onClick={handleSaveRound}
           className="mx-auto flex h-14 w-full max-w-2xl rounded-xl bg-primary text-base font-bold text-primary-foreground"
         >
-          <CirclePlus /> Save round {round}
+          <CirclePlus /> Save round {round} — add to totals
         </Button>
       </div>
     </main>
@@ -2110,6 +2197,46 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
     "#14B8A6",
     "#A855F7",
   ];
+
+  // Winners grouped by month (newest first)
+  const monthlyWinners = (() => {
+    const byMonth = new Map<
+      string,
+      { label: string; sortKey: number; wins: Map<string, { name: string; count: number }> }
+    >();
+    for (const s of sessions) {
+      const d = new Date(s.playedAt);
+      if (Number.isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      let bucket = byMonth.get(key);
+      if (!bucket) {
+        bucket = {
+          label: d.toLocaleDateString(undefined, { month: "long", year: "numeric" }),
+          sortKey: d.getFullYear() * 12 + d.getMonth(),
+          wins: new Map(),
+        };
+        byMonth.set(key, bucket);
+      }
+      for (const r of s.results) {
+        if (r.rank !== 1) continue;
+        const entry = bucket.wins.get(r.playerId) ?? { name: r.name, count: 0 };
+        entry.count += 1;
+        bucket.wins.set(r.playerId, entry);
+      }
+    }
+    return [...byMonth.values()]
+      .sort((a, b) => b.sortKey - a.sortKey)
+      .map((m) => {
+        const leaders = [...m.wins.values()].sort((a, b) => b.count - a.count);
+        const top = leaders[0]?.count ?? 0;
+        return {
+          label: m.label,
+          games: [...m.wins.values()].reduce((sum, w) => sum + w.count, 0),
+          champions: leaders.filter((w) => w.count === top),
+          standings: leaders,
+        };
+      });
+  })();
 
   return (
     <section className="space-y-6">
@@ -2351,6 +2478,61 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
           )}
         </div>
       </div>
+
+      {/* Winners by month */}
+      <div className="rounded-[1.75rem] border border-border bg-card p-5 md:p-7 shadow-xl">
+        <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-400">
+          <Crown className="size-3.5" />
+          <span>Monthly Champions</span>
+        </div>
+        <h3 className="mt-1 font-heading text-2xl font-bold text-foreground">
+          Winners by Month
+        </h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Who took home the most wins each month
+        </p>
+
+        <div className="mt-5 space-y-3">
+          {monthlyWinners.map((m) => (
+            <div
+              key={m.label}
+              className="rounded-2xl border border-border/70 bg-secondary/40 p-4"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-heading text-base font-bold text-foreground">{m.label}</p>
+                <p className="text-xs font-bold text-muted-foreground">
+                  {m.games} {m.games === 1 ? "game" : "games"} played
+                </p>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {m.champions.map((c) => (
+                  <span
+                    key={c.name}
+                    className="flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-sm font-bold text-amber-300"
+                  >
+                    <span>👑</span>
+                    {c.name}
+                    <span className="text-xs font-normal text-amber-200/80">
+                      {c.count} {c.count === 1 ? "win" : "wins"}
+                    </span>
+                  </span>
+                ))}
+              </div>
+              {m.standings.length > m.champions.length && (
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-border/50 pt-2.5 text-xs text-muted-foreground">
+                  {m.standings
+                    .filter((w) => !m.champions.includes(w))
+                    .map((w) => (
+                      <span key={w.name}>
+                        {w.name} · {w.count} {w.count === 1 ? "win" : "wins"}
+                      </span>
+                    ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }
@@ -2393,7 +2575,13 @@ function CustomStatsTooltip({
     </div>
   );
 }
-function HistoryView({ sessions }: { sessions: PastSession[] }) {
+function HistoryView({
+  sessions,
+  onEdit,
+}: {
+  sessions: PastSession[];
+  onEdit: (s: PastSession) => void;
+}) {
   const rows = sessions.map((s) => ({
     key: s.id,
     g: s.gameName,
@@ -2424,11 +2612,106 @@ function HistoryView({ sessions }: { sessions: PastSession[] }) {
                 <p className="text-sm text-muted-foreground">{x.d}</p>
               </div>
               <p className="font-bold text-primary">{x.s}</p>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Edit ${x.g} scores`}
+                onClick={() => {
+                  const s = sessions.find((y) => y.id === x.key);
+                  if (s) onEdit(s);
+                }}
+              >
+                <Pencil className="size-4" />
+              </Button>
             </div>
           ))}
         </div>
       )}
     </section>
+  );
+}
+
+function EditSessionModal({
+  session,
+  close,
+  save,
+}: {
+  session: PastSession;
+  close: () => void;
+  save: (sessionId: string, roundsData: Record<string, number>[]) => void;
+}) {
+  const hasRounds = session.roundsData.length > 0;
+  const [roundsData, setRoundsData] = useState<Record<string, number>[]>(() =>
+    hasRounds
+      ? session.roundsData.map((rd) => ({ ...rd }))
+      : [
+          Object.fromEntries(
+            session.results.map((r) => [r.playerId, r.score]),
+          ),
+        ],
+  );
+  const totals = Object.fromEntries(
+    session.results.map((r) => [
+      r.playerId,
+      roundsData.reduce((sum, rd) => sum + (rd[r.playerId] ?? 0), 0),
+    ]),
+  );
+  const setCell = (roundIdx: number, playerId: string, value: number) =>
+    setRoundsData((list) =>
+      list.map((rd, i) =>
+        i === roundIdx ? { ...rd, [playerId]: value } : rd,
+      ),
+    );
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-end bg-background/80 p-4 backdrop-blur-sm sm:place-items-center">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[1.5rem] border border-border bg-card p-6">
+        <div className="flex items-center justify-between">
+          <h2 className="font-heading text-2xl font-bold">Edit {session.gameName} scores</h2>
+          <Button onClick={close} variant="ghost" size="icon">
+            <X />
+          </Button>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {session.date} · {roundsData.length} rounds — totals, ranks and winner recalculate automatically.
+        </p>
+        <div className="mt-5 space-y-4">
+          {session.results.map((r) => (
+            <div key={r.playerId} className="rounded-2xl border border-border bg-secondary/40 p-3">
+              <div className="flex items-center justify-between">
+                <span className="font-bold">{r.name}</span>
+                <span className="text-sm font-bold text-primary">
+                  Total {totals[r.playerId] ?? 0}
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {roundsData.map((rd, i) => (
+                  <label key={i} className="flex flex-col items-center gap-1">
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground">
+                      R{i + 1}
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      value={rd[r.playerId] ?? 0}
+                      onChange={(e) =>
+                        setCell(i, r.playerId, Number(e.target.value) || 0)
+                      }
+                      className="h-10 w-16 rounded-lg border border-border bg-secondary px-2 text-center text-sm font-bold outline-none focus:border-primary"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <Button
+          onClick={() => save(session.id, roundsData)}
+          className="mt-6 h-12 w-full rounded-xl bg-primary text-primary-foreground"
+        >
+          Save changes
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -2475,6 +2758,63 @@ function NewGameModal({
           className="mt-6 h-12 w-full rounded-xl bg-primary text-primary-foreground"
         >
           Add game
+        </Button>
+      </div>
+    </div>
+  );
+}
+function WinnerOverlay({
+  info,
+  onDone,
+}: {
+  info: { gameName: string; rounds: number; results: PastSession["results"] };
+  onDone: () => void;
+}) {
+  const winner = info.results[0];
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-[1.5rem] border border-border bg-card p-6 text-center shadow-2xl">
+        <p className="text-xs font-bold uppercase tracking-widest text-primary">
+          {info.gameName} · {info.rounds} {info.rounds === 1 ? "round" : "rounds"}
+        </p>
+        <span className="animal-bob mt-3 inline-block text-6xl">🏆</span>
+        <h2 className="mt-2 font-heading text-3xl font-black">
+          {winner?.name} wins!
+        </h2>
+        <p className="mt-1 text-sm font-bold text-muted-foreground tabular-nums">
+          Final score: {winner?.score} points
+        </p>
+        <div className="mt-5 space-y-2 text-left">
+          {info.results.map((r) => (
+            <div
+              key={r.playerId}
+              className={`flex items-center justify-between rounded-xl border px-4 py-2.5 ${
+                r.rank === 1
+                  ? "border-primary bg-primary/10"
+                  : "border-border bg-secondary/40"
+              }`}
+            >
+              <span className="flex items-center gap-2 font-heading font-bold">
+                <span
+                  className={`grid size-7 place-items-center rounded-lg text-sm font-black ${
+                    r.rank === 1
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  {r.rank}
+                </span>
+                {r.name}
+              </span>
+              <span className="font-black tabular-nums">{r.score}</span>
+            </div>
+          ))}
+        </div>
+        <Button
+          onClick={onDone}
+          className="mt-6 h-12 w-full rounded-xl bg-primary font-bold text-primary-foreground"
+        >
+          Back to games
         </Button>
       </div>
     </div>
