@@ -11,6 +11,7 @@ import {
   KeyRound,
   LogIn,
   LogOut,
+  Lock,
   Mail,
   Minus,
   Pause,
@@ -105,6 +106,9 @@ type ActiveSessionData = {
   livePlayers: LivePlayer[];
   round: number;
   roundHistory: Record<string, number>[];
+  scorekeeperId?: string;
+  scorekeeperName?: string;
+  isLocked?: boolean;
 };
 
 function loadActiveGameSession(troopName: string): ActiveSessionData | null {
@@ -120,7 +124,9 @@ function loadActiveGameSession(troopName: string): ActiveSessionData | null {
 function saveActiveGameSession(troopName: string, data: ActiveSessionData) {
   if (typeof window === "undefined" || !troopName) return;
   try {
-    localStorage.setItem(ACTIVE_SESSION_PREFIX + troopName.toLowerCase(), JSON.stringify(data));
+    const key = ACTIVE_SESSION_PREFIX + troopName.toLowerCase();
+    localStorage.setItem(key, JSON.stringify(data));
+    window.dispatchEvent(new CustomEvent("scoreup_session_changed", { detail: { troopName, data } }));
   } catch (e) {
     console.debug("Failed to save active session:", e);
   }
@@ -129,7 +135,9 @@ function saveActiveGameSession(troopName: string, data: ActiveSessionData) {
 function clearActiveGameSession(troopName: string) {
   if (typeof window === "undefined" || !troopName) return;
   try {
-    localStorage.removeItem(ACTIVE_SESSION_PREFIX + troopName.toLowerCase());
+    const key = ACTIVE_SESSION_PREFIX + troopName.toLowerCase();
+    localStorage.removeItem(key);
+    window.dispatchEvent(new CustomEvent("scoreup_session_changed", { detail: { troopName, data: null } }));
   } catch (e) {
     console.debug("Failed to clear active session:", e);
   }
@@ -365,17 +373,26 @@ function GameApp() {
   const [hydrated, setHydrated] = useState(false);
   const [ongoingSession, setOngoingSession] = useState<ActiveSessionData | null>(null);
 
-  // Restore ongoing game session for active troop when player visits/logs in
+  // Restore ongoing game session for active troop when player visits/logs in, and listen for live session updates
   useEffect(() => {
     if (!authUser || !hydrated) return;
     const currentTroop = authUser.troop ?? TROOP_NAME;
-    const activeData = loadActiveGameSession(currentTroop);
-    if (activeData && activeData.game) {
+    function syncOngoingSession() {
+      const activeData = loadActiveGameSession(currentTroop);
       setOngoingSession(activeData);
-      setLivePlayers(activeData.livePlayers || []);
-      setRound(activeData.round || 1);
-      setRoundHistory(activeData.roundHistory || []);
+      if (activeData && activeData.game) {
+        setLivePlayers(activeData.livePlayers || []);
+        setRound(activeData.round || 1);
+        setRoundHistory(activeData.roundHistory || []);
+      }
     }
+    syncOngoingSession();
+    window.addEventListener("scoreup_session_changed", syncOngoingSession);
+    window.addEventListener("storage", syncOngoingSession);
+    return () => {
+      window.removeEventListener("scoreup_session_changed", syncOngoingSession);
+      window.removeEventListener("storage", syncOngoingSession);
+    };
   }, [authUser, hydrated]);
 
   function handleTriggerAddPlayer() {
@@ -699,12 +716,40 @@ function GameApp() {
   }
 
   function handleResumeOngoingGame() {
-    if (ongoingSession && ongoingSession.game) {
-      setLiveGame(ongoingSession.game);
-      setLivePlayers(ongoingSession.livePlayers || []);
-      setRound(ongoingSession.round || 1);
-      setRoundHistory(ongoingSession.roundHistory || []);
+    if (!ongoingSession || !ongoingSession.game) return;
+
+    const currentId = currentPlayerId || authUser?.id;
+    const currentName = authUser?.name || "Trooper";
+    const isLockedByOther = Boolean(
+      ongoingSession.isLocked &&
+      ongoingSession.scorekeeperId &&
+      ongoingSession.scorekeeperId !== currentId &&
+      ongoingSession.scorekeeperName &&
+      ongoingSession.scorekeeperName.toLowerCase() !== currentName.toLowerCase(),
+    );
+
+    if (isLockedByOther) {
+      alert(
+        `Scoring is currently in progress by ${ongoingSession.scorekeeperName || "another player"}. 2 or more players cannot enter values simultaneously.`,
+      );
+      return;
     }
+
+    const scorekeeperId = currentId || "guest";
+    const scorekeeperName = currentName;
+
+    const updatedSession: ActiveSessionData = {
+      ...ongoingSession,
+      scorekeeperId,
+      scorekeeperName,
+      isLocked: true,
+    };
+
+    persistActiveSession(updatedSession);
+    setLiveGame(updatedSession.game);
+    setLivePlayers(updatedSession.livePlayers || []);
+    setRound(updatedSession.round || 1);
+    setRoundHistory(updatedSession.roundHistory || []);
   }
 
   function handleDiscardOngoingGame() {
@@ -719,6 +764,9 @@ function GameApp() {
 
   function startSessionWithPlayers(game: Game, selectedPlayers: Player[]) {
     const initialLive = selectedPlayers.map((p) => ({ ...p, score: 0 }));
+    const scorekeeperId = currentPlayerId || authUser?.id || "guest";
+    const scorekeeperName = authUser?.name || "Trooper";
+
     setLiveGame(game);
     setLivePlayers(initialLive);
     setRound(1);
@@ -730,6 +778,9 @@ function GameApp() {
       livePlayers: initialLive,
       round: 1,
       roundHistory: [],
+      scorekeeperId,
+      scorekeeperName,
+      isLocked: true,
     });
   }
 
@@ -743,6 +794,9 @@ function GameApp() {
           livePlayers: updated,
           round,
           roundHistory,
+          scorekeeperId: ongoingSession?.scorekeeperId || currentPlayerId || authUser?.id || "guest",
+          scorekeeperName: ongoingSession?.scorekeeperName || authUser?.name || "Trooper",
+          isLocked: true,
         });
       }
       return updated;
@@ -760,6 +814,9 @@ function GameApp() {
           livePlayers: updatedPlayers,
           round: updatedRound,
           roundHistory: updatedHistory,
+          scorekeeperId: ongoingSession?.scorekeeperId || currentPlayerId || authUser?.id || "guest",
+          scorekeeperName: ongoingSession?.scorekeeperName || authUser?.name || "Trooper",
+          isLocked: true,
         });
       }
       return updatedPlayers;
@@ -856,10 +913,24 @@ function GameApp() {
         round={round}
         saveRound={saveRound}
         end={endGame}
-        close={() => setLiveGame(null)}
+        close={() => {
+          if (ongoingSession) {
+            persistActiveSession({
+              ...ongoingSession,
+              isLocked: false,
+            });
+          }
+          setLiveGame(null);
+        }}
         onAddBenchPlayer={addBenchPlayerToLive}
         saveLater={(entries) => {
           saveRound(entries);
+          if (ongoingSession) {
+            persistActiveSession({
+              ...ongoingSession,
+              isLocked: false,
+            });
+          }
           setLiveGame(null);
         }}
       />
@@ -1882,11 +1953,14 @@ function PlayView({
     return 0;
   });
 
-  const leaderPlayer = ongoingSession?.livePlayers
-    ? [...ongoingSession.livePlayers].sort((a, b) =>
-        ongoingSession.game.high_score_wins ? b.score - a.score : a.score - b.score,
-      )[0]
-    : null;
+  const currentId = currentUserId || (authUserName ? authUserName.toLowerCase() : undefined);
+  const isLockedByOther = Boolean(
+    ongoingSession?.isLocked &&
+      ongoingSession?.scorekeeperId &&
+      ongoingSession.scorekeeperId !== currentId &&
+      ongoingSession.scorekeeperName &&
+      ongoingSession.scorekeeperName.toLowerCase() !== (authUserName || "").toLowerCase(),
+  );
 
   return (
     <>
@@ -1896,23 +1970,41 @@ function PlayView({
             {/* Top row: Game Name + Continue / Discard actions */}
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/60 pb-5">
               <div>
-                <div className="mb-1 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-primary">
-                  <span className="inline-block size-2 animate-pulse rounded-full bg-primary" />
-                  Ongoing Game
-                </div>
+                {ongoingSession.isLocked ? (
+                  <div className="mb-1 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-amber-400">
+                    <span className="inline-block size-2 animate-pulse rounded-full bg-amber-400" />
+                    <span>🔒 Scoring in progress by {ongoingSession.scorekeeperName || "Trooper"}</span>
+                  </div>
+                ) : (
+                  <div className="mb-1 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-emerald-400">
+                    <span className="inline-block size-2 rounded-full bg-emerald-400" />
+                    <span>⏸️ Saved &amp; Ready to Resume</span>
+                  </div>
+                )}
                 <h2 className="font-heading text-3xl font-extrabold text-foreground sm:text-4xl">
                   {ongoingSession.game.name}
                 </h2>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                <Button
-                  onClick={onResumeOngoing}
-                  className="h-12 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-lg hover:brightness-110 active:scale-95"
-                >
-                  <Play className="mr-2 size-4 fill-current" />
-                  Continue with round {ongoingSession.round}
-                </Button>
+                {isLockedByOther ? (
+                  <Button
+                    disabled
+                    className="h-12 rounded-xl bg-secondary px-5 text-xs font-bold text-muted-foreground opacity-80 cursor-not-allowed"
+                    title={`Scoring is currently in progress by ${ongoingSession.scorekeeperName}`}
+                  >
+                    <Lock className="mr-2 size-4 text-amber-400" />
+                    Scoring in progress by {ongoingSession.scorekeeperName}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={onResumeOngoing}
+                    className="h-12 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-lg hover:brightness-110 active:scale-95"
+                  >
+                    <Play className="mr-2 size-4 fill-current" />
+                    Continue with round {ongoingSession.round}
+                  </Button>
+                )}
                 {onDiscardOngoing && (
                   <Button
                     variant="outline"
