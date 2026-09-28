@@ -72,7 +72,7 @@ export const Route = createFileRoute("/")({
   component: ScoreUp,
 });
 
-type Tab = "play" | "players" | "ranks" | "stats" | "history";
+type Tab = "play" | "players" | "ranks" | "history";
 type Game = {
   id: string;
   name: string;
@@ -723,7 +723,6 @@ function GameApp() {
     { id: "play", icon: Gamepad2, label: "Play" },
     { id: "players", icon: Users, label: "Players" },
     { id: "ranks", icon: Trophy, label: "Ranks" },
-    { id: "stats", icon: BarChart3, label: "Stats" },
     { id: "history", icon: History, label: "History" },
   ] as const;
   if (liveGame)
@@ -946,7 +945,6 @@ function GameApp() {
         {tab === "ranks" && (
           <RanksView players={players} sessions={sessions} openPlayer={setProfileId} />
         )}
-        {tab === "stats" && <StatsView players={players} sessions={sessions} />}
         {tab === "history" && <HistoryView sessions={sessions} onEdit={setEditingSession} />}
       </main>
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur md:hidden">
@@ -2304,89 +2302,8 @@ function RanksView({
 }: {
   players: Player[];
   sessions: PastSession[];
-  openPlayer: (id: string) => void;
+  openPlayer?: (id: string) => void;
 }) {
-  const [selectedGame, setSelectedGame] = useState<string>("all");
-  const playedGames = Array.from(new Set(sessions.map((s) => s.gameName))).sort();
-  const filteredSessions =
-    selectedGame === "all" ? sessions : sessions.filter((s) => s.gameName === selectedGame);
-  const stats = playerStats(players, filteredSessions);
-
-  return (
-    <section>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="font-bold text-primary">
-            {selectedGame === "all" ? "ALL GAMES · ALL TIME" : `${selectedGame.toUpperCase()} · LEADERBOARD`}
-          </p>
-          <h2 className="mt-1 font-heading text-4xl font-bold">Leaderboard</h2>
-        </div>
-        {playedGames.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-border/60 bg-secondary/40 p-1.5">
-            <button
-              type="button"
-              onClick={() => setSelectedGame("all")}
-              className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
-                selectedGame === "all"
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Overall (All Games)
-            </button>
-            {playedGames.map((g) => (
-              <button
-                key={g}
-                type="button"
-                onClick={() => setSelectedGame(g)}
-                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
-                  selectedGame === g
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {g}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {filteredSessions.length === 0 ? (
-        <EmptyStats label="Finish a game and the leaderboard fills up." />
-      ) : (
-        <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-border bg-card">
-          {stats.map((s, i) => (
-            <button
-              key={s.id}
-              onClick={() => openPlayer(s.id)}
-              className="flex w-full items-center gap-4 border-b border-border p-4 text-left last:border-0 hover:bg-secondary"
-            >
-              <span
-                className={`grid size-10 place-items-center rounded-xl font-black ${i === 0 ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
-              >
-                {i + 1}
-              </span>
-              <span className="text-3xl">{animals[s.animal] ?? "🦊"}</span>
-              <div className="flex-1">
-                <p className="font-heading text-lg font-bold">{s.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {s.wins} {s.wins === 1 ? "win" : "wins"}
-                  {s.seconds > 0 ? ` · ${s.seconds} 2nd` : ""}
-                  {s.avgRank < 999 ? ` · Avg position #${s.avgRank.toFixed(1)}` : ""} · {s.rate}%
-                  win rate
-                </p>
-              </div>
-              <Trophy className={i === 0 ? "text-primary" : "text-muted-foreground"} />
-            </button>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function StatsView({ players, sessions }: { players: Player[]; sessions: PastSession[] }) {
   const [selectedGame, setSelectedGame] = useState<string>("all");
   const playedGames = Array.from(new Set(sessions.map((s) => s.gameName))).sort();
   const filteredSessions =
@@ -2395,6 +2312,9 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
   const [metric, setMetric] = useState<"rate" | "wins">("rate");
   const [layout, setLayout] = useState<"columns" | "rows">("columns");
   const [sortOrder, setSortOrder] = useState<"desc" | "asc" | "alpha">("desc");
+
+  // Create rank mapping based on position ordering (#1, #2, #3...)
+  const rankMap = new Map(stats.map((s, idx) => [s.id, idx + 1]));
 
   const totalVictories = filteredSessions.length;
   const squadSize = players.length;
@@ -2411,10 +2331,10 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
           <div>
             <div className="flex items-center gap-2 text-2xl font-bold">
               <span>🏆</span>
-              <h2 className="font-heading text-3xl font-bold md:text-4xl">Squad Stats</h2>
+              <h2 className="font-heading text-3xl font-bold md:text-4xl">Ranks</h2>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Total game night victories recorded by each player across the squad
+              Career standings and rankings recorded for each player across the squad
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 pt-2 md:pt-0">
@@ -2426,7 +2346,7 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
             </div>
           </div>
         </div>
-        <EmptyStats label="Charts appear once you finish your first game." />
+        <EmptyStats label="Ranks and charts appear once you finish your first game." />
       </section>
     );
   }
@@ -2445,11 +2365,22 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
       }
       return a.name.localeCompare(b.name);
     })
-    .map((s) => ({
-      ...s,
-      value: metric === "rate" ? s.rate : s.wins,
-      displayLabel: metric === "rate" ? `${s.rate}%` : s.wins > 0 ? `${s.wins} 🏆` : "0",
-    }));
+    .map((s) => {
+      const rank = rankMap.get(s.id) ?? 1;
+      return {
+        ...s,
+        rank,
+        rankLabel: `#${rank}`,
+        nameWithRank: `#${rank} ${s.name}`,
+        value: metric === "rate" ? s.rate : s.wins,
+        displayLabel:
+          metric === "rate"
+            ? `#${rank} · ${s.rate}%`
+            : s.wins > 0
+              ? `#${rank} · ${s.wins} 🏆`
+              : `#${rank} · 0`,
+      };
+    });
 
   const BAR_COLORS = [
     "#EAB308",
@@ -2512,11 +2443,11 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
           <div className="flex items-center gap-2.5">
             <span className="text-3xl">🏆</span>
             <h2 className="font-heading text-3xl font-bold tracking-tight md:text-4xl">
-              Squad Stats
+              Ranks
             </h2>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Total game night victories recorded by each player across the squad
+            Career standings and rankings recorded for each player across the squad
           </p>
           {playedGames.length > 0 && (
             <div className="mt-3 flex flex-wrap items-center gap-1 rounded-2xl border border-border/60 bg-secondary/40 p-1.5 w-fit">
@@ -2557,7 +2488,7 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
               </span>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
-                  Squad MVP
+                  Squad Leader (#1)
                 </p>
                 <p className="font-heading text-sm font-bold text-foreground">
                   {mvp.name}{" "}
@@ -2587,20 +2518,20 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
         </div>
       </div>
 
-      {/* Main Single Graph Card */}
+      {/* Main Single Graph Card with Standings & Rankings */}
       <div className="rounded-[1.75rem] border border-border bg-card p-5 md:p-7 shadow-xl">
         <div className="flex flex-col gap-4 border-b border-border/60 pb-5 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-400">
               <BarChart3 className="size-3.5" />
-              <span>{metric === "rate" ? "WIN RATE GRAPH CHART" : "VICTORIES GRAPH CHART"}</span>
+              <span>{metric === "rate" ? "WIN RATE & RANKINGS CHART" : "VICTORIES & RANKINGS CHART"}</span>
             </div>
             <h3 className="mt-1 font-heading text-2xl font-bold text-foreground">
-              {metric === "rate" ? "Win Rate by Each Player" : "Total Wins by Each Player"}
+              {metric === "rate" ? "Trooper Win Rates & Rankings" : "Trooper Total Wins & Rankings"}
             </h3>
           </div>
 
-          {/* Controls matching mockup */}
+          {/* Controls */}
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="flex items-center rounded-xl border border-border/60 bg-secondary/80 p-1">
               <button
@@ -2639,7 +2570,7 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
               <ArrowUpDown className="size-3.5 text-primary" />
               <span>
                 {sortOrder === "desc"
-                  ? `Sorted by ${metric === "rate" ? "Win Rate" : "Wins"}`
+                  ? "Sorted by Rank"
                   : sortOrder === "asc"
                     ? "Lowest first"
                     : "Alphabetical"}
@@ -2684,7 +2615,7 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
                   opacity={0.6}
                 />
                 <XAxis
-                  dataKey="name"
+                  dataKey="nameWithRank"
                   stroke="var(--muted-foreground)"
                   tick={{ fontSize: 13, fontWeight: 600 }}
                   tickLine={false}
@@ -2715,6 +2646,8 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
                           ? "rgba(120, 120, 140, 0.25)"
                           : BAR_COLORS[index % BAR_COLORS.length]
                       }
+                      onClick={() => openPlayer && openPlayer(entry.id)}
+                      className="cursor-pointer"
                     />
                   ))}
                 </Bar>
@@ -2743,7 +2676,7 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
                 />
                 <YAxis
                   type="category"
-                  dataKey="name"
+                  dataKey="nameWithRank"
                   stroke="var(--muted-foreground)"
                   tick={{ fontSize: 13, fontWeight: 600 }}
                   tickLine={false}
@@ -2765,6 +2698,8 @@ function StatsView({ players, sessions }: { players: Player[]; sessions: PastSes
                           ? "rgba(120, 120, 140, 0.25)"
                           : BAR_COLORS[index % BAR_COLORS.length]
                       }
+                      onClick={() => openPlayer && openPlayer(entry.id)}
+                      className="cursor-pointer"
                     />
                   ))}
                 </Bar>
@@ -2830,19 +2765,27 @@ function CustomStatsTooltip({
   payload,
 }: {
   active?: boolean;
-  payload?: Array<{ payload: PlayerStat & { value: number; displayLabel: string } }>;
+  payload?: Array<{
+    payload: PlayerStat & { value: number; displayLabel: string; rank?: number; nameWithRank?: string };
+  }>;
 }) {
   if (!active || !payload || !payload.length) return null;
   const data = payload[0]?.payload;
   if (!data) return null;
   return (
     <div className="rounded-2xl border border-border bg-card/95 p-3.5 shadow-xl backdrop-blur-sm">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2.5">
+        {data.rank !== undefined && (
+          <span className="grid size-8 place-items-center rounded-xl bg-primary font-black text-xs text-primary-foreground">
+            #{data.rank}
+          </span>
+        )}
         <span className="text-2xl">{animals[data.animal] ?? "🦊"}</span>
         <div>
           <p className="font-heading text-base font-bold text-foreground">{data.name}</p>
           <p className="text-xs text-muted-foreground">
             {data.games} {data.games === 1 ? "game" : "games"} played
+            {data.rank !== undefined ? ` · Rank #${data.rank}` : ""}
           </p>
         </div>
       </div>
