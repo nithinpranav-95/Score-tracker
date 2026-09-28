@@ -45,6 +45,7 @@ import {
   parseQuoteAuth,
   encodeQuoteAuth,
   type AuthUser,
+  TROOP_NAME,
 } from "@/lib/auth";
 import { AuthPage } from "./auth";
 
