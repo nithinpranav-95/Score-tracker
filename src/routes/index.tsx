@@ -2621,6 +2621,8 @@ function LiveSession({
 }) {
   const [entries, setEntries] = useState<Record<string, number>>({});
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
+  const [confirmSaveRound, setConfirmSaveRound] = useState(false);
+  const [showLaterConfirm, setShowLaterConfirm] = useState(false);
 
   const adjustEntry = (id: string, by: number) =>
     setEntries((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + by }));
@@ -2637,6 +2639,11 @@ function LiveSession({
   const handleSaveRound = () => {
     saveRound(entries);
     setEntries({});
+  };
+  const handleSaveLater = () => {
+    const hasEntries = Object.values(entries).some((v) => v !== 0);
+    if (hasEntries) saveLater?.(entries);
+    else close();
   };
 
   // Static saved-score sort (cards never re-order while typing)
@@ -2870,29 +2877,47 @@ function LiveSession({
           </div>
         )}
       </div>
-      <div className="fixed inset-x-0 bottom-0 border-t border-border bg-surface p-4">
-        <div className="mx-auto flex max-w-2xl gap-3">
-          <Button
-            onClick={handleSaveRound}
-            className="flex h-14 flex-1 rounded-xl bg-primary text-base font-bold text-primary-foreground"
-          >
-            <CirclePlus /> Save round {round}
-          </Button>
-          {saveLater && (
-            <Button
-              onClick={() => {
-                const hasEntries = Object.values(entries).some((v) => v !== 0);
-                if (hasEntries) saveLater(entries);
-                else close();
-              }}
-              variant="outline"
-              className="flex h-14 flex-1 rounded-xl border-primary/30 text-base font-bold text-primary hover:bg-primary/10"
-            >
-              <Pause className="size-4" /> Save & Continue Later
-            </Button>
-          )}
+        <div className="fixed inset-x-0 bottom-0 border-t border-border bg-surface p-4">
+          <div className="mx-auto flex max-w-2xl gap-3">
+            {confirmSaveRound ? (
+              <>
+                <Button
+                  onClick={() => setConfirmSaveRound(false)}
+                  variant="outline"
+                  aria-label="Cancel saving this round"
+                  className="h-14 w-16 shrink-0 rounded-xl border-destructive/40 text-destructive hover:bg-destructive/10"
+                >
+                  <X />
+                </Button>
+                <Button
+                  onClick={() => {
+                    setConfirmSaveRound(false);
+                    handleSaveRound();
+                  }}
+                  className="flex h-14 flex-1 rounded-xl bg-primary text-base font-bold text-primary-foreground"
+                >
+                  <Check /> Yes, save round {round}
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={() => setConfirmSaveRound(true)}
+                className="flex h-14 flex-1 rounded-xl bg-primary text-base font-bold text-primary-foreground"
+              >
+                <CirclePlus /> Save round {round}
+              </Button>
+            )}
+            {saveLater && (
+              <Button
+                onClick={() => setShowLaterConfirm(true)}
+                variant="outline"
+                className="flex h-14 flex-1 rounded-xl border-primary/30 text-base font-bold text-primary hover:bg-primary/10"
+              >
+                <Pause className="size-4" /> Save & Continue Later
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
 
       {showFinishConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
@@ -2917,6 +2942,36 @@ function LiveSession({
                 className="rounded-xl bg-primary font-bold text-primary-foreground"
               >
                 Finish & Save
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLaterConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+            <h3 className="font-heading text-xl font-bold text-foreground">Save & Continue Later?</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Are you sure? Round {round}'s scores will be saved and the game paused — you can pick
+              up right where you left off.
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowLaterConfirm(false)}
+                className="rounded-xl"
+              >
+                No, keep playing
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowLaterConfirm(false);
+                  handleSaveLater();
+                }}
+                className="rounded-xl bg-primary font-bold text-primary-foreground"
+              >
+                Yes, save & pause
               </Button>
             </div>
           </div>
