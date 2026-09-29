@@ -2977,7 +2977,7 @@ function RanksView({
   const stats = playerStats(players, filteredSessions);
   const [metric, setMetric] = useState<"rank" | "rate" | "wins">("rank");
   const [layout, setLayout] = useState<"columns" | "rows">("columns");
-  const [sortOrder, setSortOrder] = useState<"desc" | "asc" | "alpha">("desc");
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc" | "alpha">("alpha");
 
   // Create rank mapping based on position ordering (#1, #2, #3...) with equal ranks for ties
   const rankMap = computePlayerRanks(stats);
@@ -3036,12 +3036,14 @@ function RanksView({
       return a.name.localeCompare(b.name);
     })
     .map((s) => {
-      const rank = rankMap.get(s.id) ?? 1;
-      const rankScore = Math.max(1, squadSize - rank + 1);
+      const hasPlayed = s.games > 0;
+      const rank = hasPlayed ? (rankMap.get(s.id) ?? 1) : null;
+      const rankScore = hasPlayed && rank !== null ? Math.max(1, squadSize - rank + 1) : 0;
       const value = metric === "rank" ? rankScore : metric === "rate" ? s.rate : s.wins;
-      const displayLabel =
-        metric === "rank"
-          ? `Rank #${rank}`
+      const displayLabel = !hasPlayed
+        ? "No rank"
+        : metric === "rank"
+          ? `${rank}`
           : metric === "rate"
             ? `#${rank} · ${s.rate}%`
             : s.wins > 0
@@ -3051,8 +3053,8 @@ function RanksView({
       return {
         ...s,
         rank,
-        rankLabel: `#${rank}`,
-        nameWithRank: `#${rank} ${s.name}`,
+        rankLabel: rank !== null ? `#${rank}` : "—",
+        nameWithRank: rank !== null ? `#${rank} ${s.name}` : s.name,
         value,
         displayLabel,
       };
