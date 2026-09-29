@@ -57,15 +57,15 @@ import { AuthPage } from "./auth";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "ScoreUp — Game Night Scorekeeper" },
+      { title: "Troop Connect" },
       {
         name: "description",
-        content: "Track live rounds, friend-group rankings and every game-night victory.",
+        content: "Track live rounds, friend-group rankings and every victory.",
       },
-      { property: "og:title", content: "ScoreUp — Game Night Scorekeeper" },
+      { property: "og:title", content: "Troop Connect" },
       {
         property: "og:description",
-        content: "Track live rounds, friend-group rankings and every game-night victory.",
+        content: "Track live rounds, friend-group rankings and every victory.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -355,7 +355,7 @@ function ScoreUp() {
     return (
       <div className="grid min-h-screen place-items-center bg-background text-foreground">
         <p className="animate-pulse font-heading text-xl font-bold text-muted-foreground">
-          Loading game night…
+          Loading…
         </p>
       </div>
     );
@@ -431,10 +431,12 @@ function computePlayerRanks(stats: PlayerStat[]): Map<string, number> {
   const rankMap = new Map<string, number>();
   let currentRank = 1;
   for (let i = 0; i < stats.length; i++) {
+    const curr = stats[i];
+    if (!curr) continue;
     if (i > 0) {
       const prev = stats[i - 1];
-      const curr = stats[i];
       const isTied =
+        prev !== undefined &&
         curr.wins === prev.wins &&
         curr.seconds === prev.seconds &&
         curr.thirds === prev.thirds &&
@@ -443,7 +445,7 @@ function computePlayerRanks(stats: PlayerStat[]): Map<string, number> {
         currentRank = i + 1;
       }
     }
-    rankMap.set(stats[i].id, currentRank);
+    rankMap.set(curr.id, currentRank);
   }
   return rankMap;
 }
@@ -633,7 +635,7 @@ function GameApp() {
                 id: r.playerId || crypto.randomUUID(),
                 display_name: r.name,
                 spirit_animal: "fox",
-                quote: "Game night legend",
+                quote: "Squad legend",
               });
             }
           });
@@ -1096,13 +1098,25 @@ function GameApp() {
         }}
         onAddBenchPlayer={addBenchPlayerToLive}
         saveLater={(entries) => {
-          saveRound(entries);
-          if (ongoingSession) {
-            persistActiveSession({
-              ...ongoingSession,
-              isLocked: false,
-            });
-          }
+          const updatedPlayers = livePlayers.map((p) => ({
+            ...p,
+            score: p.score + (entries[p.id] ?? 0),
+          }));
+          const updatedHistory = [...roundHistory, entries];
+          const updatedRound = round + 1;
+          setLivePlayers(updatedPlayers);
+          setRoundHistory(updatedHistory);
+          setRound(updatedRound);
+          persistActiveSession({
+            game: liveGame,
+            livePlayers: updatedPlayers,
+            round: updatedRound,
+            roundHistory: updatedHistory,
+            scorekeeperId:
+              ongoingSession?.scorekeeperId || currentPlayerId || authUser?.id || "guest",
+            scorekeeperName: ongoingSession?.scorekeeperName || authUser?.name || "Trooper",
+            isLocked: false,
+          });
           setLiveGame(null);
         }}
       />
@@ -1158,10 +1172,7 @@ function GameApp() {
               🎲
             </span>
             <div>
-              <p className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
-                Game Night
-              </p>
-              <h1 className="font-heading text-xl font-bold leading-tight">ScoreUp</h1>
+              <h1 className="font-heading text-xl font-bold leading-tight">Troop Connect</h1>
             </div>
           </button>
 
@@ -1554,7 +1565,7 @@ function ProfileSheet({
   const animalInfo = spiritAnimals[player.spirit_animal] ?? {
     emoji: animals[player.spirit_animal] ?? "🦊",
     title: player.spirit_animal,
-    defaultQuote: "Game night ready",
+    defaultQuote: "Ready to play",
     badgeBg: "from-primary/20 to-secondary border-border",
   };
   const quote = cleanQuote(player.quote) || animalInfo.defaultQuote;
@@ -1754,7 +1765,7 @@ function EditPlayerModal({
           onClick={() => {
             const parsed = parseQuoteAuth(player.quote);
             const finalQuote =
-              quote.trim() || spiritAnimals[animal]?.defaultQuote || "Game night ready";
+              quote.trim() || spiritAnimals[animal]?.defaultQuote || "Ready to play";
             const updatedQuote = parsed.auth
               ? encodeQuoteAuth(finalQuote, parsed.auth.salt, parsed.auth.hash)
               : finalQuote;
@@ -1927,7 +1938,7 @@ function PlayersView({
   sessions: PastSession[];
   openPlayer: (id: string) => void;
   openEditPlayer: (player: Player) => void;
-  currentUserId?: string;
+  currentUserId?: string | undefined;
 }) {
   const statsMap = new Map<string, PlayerStat>();
   playerStats(players, sessions).forEach((s) => statsMap.set(s.id, s));
@@ -1981,7 +1992,7 @@ function PlayersView({
             const animalInfo = spiritAnimals[p.spirit_animal] ?? {
               emoji: animals[p.spirit_animal] ?? "🦊",
               title: p.spirit_animal,
-              defaultQuote: "Game night ready",
+              defaultQuote: "Ready to play",
               badgeBg: "from-primary/20 to-secondary border-border",
             };
             const quote = cleanQuote(p.quote) || animalInfo.defaultQuote;
@@ -2099,8 +2110,8 @@ function PlayView({
   openAddPlayer?: () => void;
   openCreateTroop?: () => void;
   goToPlayers?: () => void;
-  currentUserId?: string;
-  authUserName?: string;
+  currentUserId?: string | undefined;
+  authUserName?: string | undefined;
   ongoingSession?: ActiveSessionData | null;
   onResumeOngoing?: () => void;
   onDiscardOngoing?: () => void;
@@ -2264,7 +2275,7 @@ function PlayView({
             <p className="text-sm text-muted-foreground">
               {players.length === 0
                 ? "No players yet — select a game above to start and add players"
-                : `${players.length} friend${players.length === 1 ? "" : "s"} ready for game night`}
+                : `${players.length} friend${players.length === 1 ? "" : "s"} ready to play`}
             </p>
           </div>
         </div>
@@ -2283,7 +2294,7 @@ function PlayView({
               const animalInfo = spiritAnimals[p.spirit_animal] ?? {
                 emoji: animals[p.spirit_animal] ?? "🦊",
                 title: p.spirit_animal,
-                defaultQuote: "Game night ready",
+                defaultQuote: "Ready to play",
               };
               const quote = cleanQuote(p.quote) || animalInfo.defaultQuote;
               return (
@@ -2580,6 +2591,8 @@ function LiveSession({
 }) {
   const [entries, setEntries] = useState<Record<string, number>>({});
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
+  const [confirmSaveRound, setConfirmSaveRound] = useState(false);
+  const [showLaterConfirm, setShowLaterConfirm] = useState(false);
 
   const adjustEntry = (id: string, by: number) =>
     setEntries((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + by }));
@@ -2596,6 +2609,11 @@ function LiveSession({
   const handleSaveRound = () => {
     saveRound(entries);
     setEntries({});
+  };
+  const handleSaveLater = () => {
+    const hasEntries = Object.values(entries).some((v) => v !== 0);
+    if (hasEntries) saveLater?.(entries);
+    else close();
   };
 
   // Static saved-score sort (cards never re-order while typing)
@@ -2636,7 +2654,7 @@ function LiveSession({
   if (hasAnyEntry) {
     avgLabel = "Round avg";
     avgCount = providedIds.length;
-    avgSum = providedIds.reduce((sum, id) => sum + entries[id], 0);
+    avgSum = providedIds.reduce((sum, id) => sum + (entries[id] ?? 0), 0);
   } else {
     avgLabel = "Group avg";
     const playersWithPoints = players.filter(p => p.score !== 0);
@@ -2829,29 +2847,47 @@ function LiveSession({
           </div>
         )}
       </div>
-      <div className="fixed inset-x-0 bottom-0 border-t border-border bg-surface p-4">
-        <div className="mx-auto flex max-w-2xl gap-3">
-          <Button
-            onClick={handleSaveRound}
-            className="flex h-14 flex-1 rounded-xl bg-primary text-base font-bold text-primary-foreground"
-          >
-            <CirclePlus /> Save round {round}
-          </Button>
-          {saveLater && (
-            <Button
-              onClick={() => {
-                const hasEntries = Object.values(entries).some((v) => v !== 0);
-                if (hasEntries) saveLater(entries);
-                else close();
-              }}
-              variant="outline"
-              className="flex h-14 shrink-0 rounded-xl border-primary/30 text-sm font-bold text-primary hover:bg-primary/10"
-            >
-              <Pause className="size-4" /> Save & Continue Later
-            </Button>
-          )}
+        <div className="fixed inset-x-0 bottom-0 border-t border-border bg-surface p-4">
+          <div className="mx-auto flex max-w-2xl gap-3">
+            {confirmSaveRound ? (
+              <>
+                <Button
+                  onClick={() => setConfirmSaveRound(false)}
+                  variant="outline"
+                  aria-label="Cancel saving this round"
+                  className="h-14 w-16 shrink-0 rounded-xl border-destructive/40 text-destructive hover:bg-destructive/10"
+                >
+                  <X />
+                </Button>
+                <Button
+                  onClick={() => {
+                    setConfirmSaveRound(false);
+                    handleSaveRound();
+                  }}
+                  className="flex h-14 flex-1 rounded-xl bg-primary text-base font-bold text-primary-foreground"
+                >
+                  <Check /> Yes, save round {round}
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={() => setConfirmSaveRound(true)}
+                className="flex h-14 flex-1 rounded-xl bg-primary text-base font-bold text-primary-foreground"
+              >
+                <CirclePlus /> Save round {round}
+              </Button>
+            )}
+            {saveLater && (
+              <Button
+                onClick={() => setShowLaterConfirm(true)}
+                variant="outline"
+                className="flex h-14 flex-1 rounded-xl border-primary/30 text-base font-bold text-primary hover:bg-primary/10"
+              >
+                <Pause className="size-4" /> Save & Continue Later
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
 
       {showFinishConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
@@ -2876,6 +2912,36 @@ function LiveSession({
                 className="rounded-xl bg-primary font-bold text-primary-foreground"
               >
                 Finish & Save
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLaterConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+            <h3 className="font-heading text-xl font-bold text-foreground">Save & Continue Later?</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Are you sure? Round {round}'s scores will be saved and the game paused — you can pick
+              up right where you left off.
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowLaterConfirm(false)}
+                className="rounded-xl"
+              >
+                No, keep playing
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowLaterConfirm(false);
+                  handleSaveLater();
+                }}
+                className="rounded-xl bg-primary font-bold text-primary-foreground"
+              >
+                Yes, save & pause
               </Button>
             </div>
           </div>
@@ -3642,7 +3708,7 @@ function DeleteSessionModal({
   session: PastSession;
   close: () => void;
   onConfirmDelete: (sessionId: string) => Promise<void> | void;
-  userEmail?: string;
+  userEmail?: string | undefined;
   onSaveUserEmail?: (email: string) => void;
 }) {
   const [emailInput, setEmailInput] = useState(userEmail || "");

@@ -89,6 +89,7 @@ export interface AuthUser {
   spirit_animal: string;
   quote?: string;
   troop?: string;
+  email?: string | undefined;
 }
 
 export interface StoredAccount {
@@ -457,7 +458,7 @@ export async function signInWithNameAndPassword({
   let expectedHash: string | undefined;
   const targetId = cloudPlayer?.id || localMatch?.id || crypto.randomUUID();
   const targetAnimal = cloudPlayer?.spirit_animal || localMatch?.spirit_animal || "fox";
-  const targetQuote = cleanQuote(cloudPlayer?.quote || localMatch?.quote || "Game night ready");
+  const targetQuote = cleanQuote(cloudPlayer?.quote || localMatch?.quote || "Ready to play");
 
   if (cloudPlayer?.quote) {
     const parsed = parseQuoteAuth(cloudPlayer.quote);
@@ -616,7 +617,7 @@ export async function changePlayerPassword({
   // Hash the new password
   const newSalt = generateSalt();
   const newHash = await hashPassword(newPassword, newSalt);
-  const clean = parsed.clean || cleanQuote(rawQuote) || "Game night ready";
+  const clean = parsed.clean || cleanQuote(rawQuote) || "Ready to play";
   const updatedQuote = encodeQuoteAuth(clean, newSalt, newHash);
 
   const effectiveId = targetPlayer?.id || localMatch?.id || playerId || crypto.randomUUID();

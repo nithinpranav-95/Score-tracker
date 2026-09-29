@@ -7,15 +7,15 @@ import { createTroop, enterTroop, spiritAnimals, useAuth, signOut } from "@/lib/
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Enter Your Troop — ScoreUp" },
+      { title: "Enter Your Troop — Troop Connect" },
       {
         name: "description",
-        content: "Enter your troop name and trooper name, or create a new troop on ScoreUp.",
+        content: "Enter your troop name and trooper name, or create a new troop on Troop Connect.",
       },
-      { property: "og:title", content: "Enter Your Troop — ScoreUp" },
+      { property: "og:title", content: "Enter Your Troop — Troop Connect" },
       {
         property: "og:description",
-        content: "Enter your troop name and trooper name, or create a new troop on ScoreUp.",
+        content: "Enter your troop name and trooper name, or create a new troop on Troop Connect.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -90,7 +90,7 @@ export function AuthPage() {
             <span className="grid size-9 place-items-center rounded-xl bg-primary text-lg font-bold text-primary-foreground shadow-md">
               🎲
             </span>
-            <span className="font-heading text-xl font-bold tracking-tight">ScoreUp</span>
+            <span className="font-heading text-xl font-bold tracking-tight">Troop Connect</span>
           </Link>
         </div>
       </header>
@@ -301,7 +301,7 @@ export function AuthPage() {
       </main>
 
       <footer className="relative z-10 py-4 text-center text-xs text-muted-foreground">
-        ScoreUp Game Night · Live scoring and glory for your troop
+        Troop Connect · Live scoring and glory for your troop
       </footer>
     </div>
   );
