@@ -57,15 +57,15 @@ import { AuthPage } from "./auth";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "ScoreUp — Game Night Scorekeeper" },
+      { title: "Troop Connect" },
       {
         name: "description",
-        content: "Track live rounds, friend-group rankings and every game-night victory.",
+        content: "Track live rounds, friend-group rankings and every victory.",
       },
-      { property: "og:title", content: "ScoreUp — Game Night Scorekeeper" },
+      { property: "og:title", content: "Troop Connect" },
       {
         property: "og:description",
-        content: "Track live rounds, friend-group rankings and every game-night victory.",
+        content: "Track live rounds, friend-group rankings and every victory.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -355,7 +355,7 @@ function ScoreUp() {
     return (
       <div className="grid min-h-screen place-items-center bg-background text-foreground">
         <p className="animate-pulse font-heading text-xl font-bold text-muted-foreground">
-          Loading game night…
+          Loading…
         </p>
       </div>
     );
@@ -1172,10 +1172,7 @@ function GameApp() {
               🎲
             </span>
             <div>
-              <p className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
-                Game Night
-              </p>
-              <h1 className="font-heading text-xl font-bold leading-tight">ScoreUp</h1>
+              <h1 className="font-heading text-xl font-bold leading-tight">Troop Connect</h1>
             </div>
           </button>
 
@@ -2286,7 +2283,7 @@ function PlayView({
             <p className="text-sm text-muted-foreground">
               {players.length === 0
                 ? "No players yet — select a game above to start and add players"
-                : `${players.length} friend${players.length === 1 ? "" : "s"} ready for game night`}
+                : `${players.length} friend${players.length === 1 ? "" : "s"} ready to play`}
             </p>
           </div>
           {openCreateTroop ? (
