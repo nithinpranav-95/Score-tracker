@@ -1305,6 +1305,7 @@ function GameApp() {
           <PlayView
             games={games}
             players={players}
+            sessions={sessions}
             start={handleSelectGame}
             openNew={handleOpenNewGame}
             openPlayer={setProfileId}
@@ -2091,6 +2092,7 @@ function PlayersView({
 function PlayView({
   games,
   players,
+  sessions = [],
   start,
   openNew,
   openPlayer,
@@ -2105,6 +2107,7 @@ function PlayView({
 }: {
   games: Game[];
   players: Player[];
+  sessions?: PastSession[];
   start: (g: Game) => void;
   openNew: () => void;
   openPlayer: (id: string) => void;
@@ -2134,13 +2137,19 @@ function PlayView({
   const isScorekeeper = checkIsScorekeeper(ongoingSession || null, currentUserId, authUserName);
   const isLockedByOther = Boolean(ongoingSession?.isLocked && !isScorekeeper);
 
+  // Compute top 3 troop rankings
+  const stats = playerStats(players, sessions);
+  const top1 = stats[0];
+  const top2 = stats[1];
+  const top3 = stats[2];
+
   return (
     <>
       {ongoingSession && ongoingSession.game && (
-        <section className="mb-8">
-          <div className="rounded-[1.75rem] border border-primary/40 bg-gradient-to-br from-primary/15 via-primary/5 to-card p-6 shadow-xl backdrop-blur">
+        <section className="mb-6">
+          <div className="rounded-[1.75rem] border border-primary/40 bg-gradient-to-br from-primary/15 via-primary/5 to-card p-5 sm:p-6 shadow-xl backdrop-blur">
             {/* Top row: Game Name + Continue / Discard actions */}
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/60 pb-5">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/60 pb-4">
               <div>
                 {ongoingSession.isLocked ? (
                   <div className="mb-1 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-amber-400">
@@ -2153,27 +2162,27 @@ function PlayView({
                     <span>⏸️ Saved &amp; Ready to Resume</span>
                   </div>
                 )}
-                <h2 className="font-heading text-3xl font-extrabold text-foreground sm:text-4xl">
+                <h2 className="font-heading text-2xl font-extrabold text-foreground sm:text-3xl">
                   {ongoingSession.game.name}
                 </h2>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
                 {isLockedByOther ? (
                   <Button
                     disabled
-                    className="h-12 rounded-xl bg-secondary px-5 text-xs font-bold text-muted-foreground opacity-80 cursor-not-allowed"
+                    className="h-10 rounded-xl bg-secondary px-4 text-xs font-bold text-muted-foreground opacity-80 cursor-not-allowed"
                     title={`Scoring is currently in progress by ${ongoingSession.scorekeeperName}`}
                   >
-                    <Lock className="mr-2 size-4 text-amber-400" />
+                    <Lock className="mr-2 size-3.5 text-amber-400" />
                     Scoring in progress by {ongoingSession.scorekeeperName}
                   </Button>
                 ) : (
                   <Button
                     onClick={onResumeOngoing}
-                    className="h-12 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-lg hover:brightness-110 active:scale-95"
+                    className="h-10 rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground shadow-lg hover:brightness-110 active:scale-95"
                   >
-                    <Play className="mr-2 size-4 fill-current" />
+                    <Play className="mr-1.5 size-3.5 fill-current" />
                     Continue with round {ongoingSession.round}
                   </Button>
                 )}
@@ -2181,7 +2190,7 @@ function PlayView({
                   <Button
                     variant="outline"
                     onClick={onDiscardOngoing}
-                    className="h-12 rounded-xl border-border px-4 text-xs font-bold text-muted-foreground hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                    className="h-10 rounded-xl border-border px-3 text-xs font-bold text-muted-foreground hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
                   >
                     Discard
                   </Button>
@@ -2190,32 +2199,32 @@ function PlayView({
             </div>
 
             {/* Bottom row: Live Rankings & Player Scores */}
-            <div className="mt-4">
+            <div className="mt-3">
               <button
                 type="button"
                 onClick={() => setIsStandingsExpanded((prev) => !prev)}
-                className="flex w-full items-center justify-between rounded-xl p-2.5 transition hover:bg-secondary/40 active:scale-[0.99] group cursor-pointer"
+                className="flex w-full items-center justify-between rounded-xl px-2 py-1.5 transition hover:bg-secondary/40 active:scale-[0.99] group cursor-pointer"
               >
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground group-hover:text-foreground">
+                <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground group-hover:text-foreground">
                   <span>Current Standings ({ongoingSession.livePlayers?.length ?? 0} players)</span>
                   <ChevronDown
-                    className={`size-4 text-primary transition-transform duration-200 ${
+                    className={`size-3.5 text-primary transition-transform duration-200 ${
                       isStandingsExpanded ? "rotate-180" : ""
                     }`}
                   />
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-primary">
                     Round {ongoingSession.round}
                   </span>
-                  <span className="rounded-lg bg-secondary/80 px-2.5 py-1 text-[11px] font-bold text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary transition-colors">
-                    {isStandingsExpanded ? "Hide scores" : "Expand scores"}
+                  <span className="rounded-lg bg-secondary/80 px-2 py-0.5 text-[10px] font-bold text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary transition-colors">
+                    {isStandingsExpanded ? "Hide" : "Expand"}
                   </span>
                 </div>
               </button>
 
               {isStandingsExpanded && (
-                <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
+                <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
                   {[...(ongoingSession.livePlayers || [])]
                     .sort((a, b) =>
                       ongoingSession.game.high_score_wins ? b.score - a.score : a.score - b.score,
@@ -2223,14 +2232,14 @@ function PlayView({
                     .map((player, idx) => (
                       <div
                         key={player.id}
-                        className={`flex items-center gap-2.5 rounded-xl border p-2.5 transition ${
+                        className={`flex items-center gap-2 rounded-xl border p-2 transition ${
                           idx === 0
                             ? "border-primary/40 bg-primary/10 shadow-sm"
                             : "border-border/60 bg-card/60"
                         }`}
                       >
                         <span
-                          className={`grid size-7 place-items-center rounded-lg text-xs font-black ${
+                          className={`grid size-6 place-items-center rounded-md text-[11px] font-black ${
                             idx === 0
                               ? "bg-primary text-primary-foreground"
                               : "bg-secondary text-muted-foreground"
@@ -2238,12 +2247,12 @@ function PlayView({
                         >
                           #{idx + 1}
                         </span>
-                        <span className="text-xl">{animals[player.spirit_animal] ?? "🦊"}</span>
+                        <span className="text-lg">{animals[player.spirit_animal] ?? "🦊"}</span>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-xs font-bold text-foreground">
                             {player.display_name}
                           </p>
-                          <p className="text-[11px] font-black text-primary tabular-nums">
+                          <p className="text-[10px] font-black text-primary tabular-nums">
                             {player.score} pts
                           </p>
                         </div>
@@ -2252,6 +2261,110 @@ function PlayView({
                 </div>
               )}
             </div>
+          </div>
+        </section>
+      )}
+
+      {/* Top 3 Troop Leaders Podium */}
+      {stats.length > 0 && (
+        <section className="mb-8">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Crown className="size-5 text-amber-400" />
+              <h3 className="font-heading text-xl font-bold text-foreground">Troop Leaders</h3>
+            </div>
+            <span className="text-xs font-bold text-muted-foreground">Top 3 Standings</span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2.5 sm:gap-4 items-end pt-2">
+            {/* 2nd Place - Left (Silver) */}
+            {top2 ? (
+              <div
+                onClick={() => openPlayer(top2.id)}
+                className="group cursor-pointer rounded-2xl border border-slate-400/40 bg-gradient-to-b from-slate-400/15 via-slate-400/5 to-card p-3 sm:p-4 text-center shadow-lg transition hover:-translate-y-1 hover:border-slate-300"
+              >
+                <div className="relative mb-2 flex flex-col items-center">
+                  <span className="text-2xl filter drop-shadow-[0_0_8px_rgba(203,213,225,0.8)]">
+                    🥈
+                  </span>
+                  <span className="mt-1 text-2xl sm:text-3xl">{animals[top2.animal] ?? "🦊"}</span>
+                </div>
+                <div className="inline-block rounded-full bg-slate-400/20 px-2 py-0.5 text-[10px] font-black uppercase text-slate-300">
+                  #2 Rank
+                </div>
+                <h4 className="mt-1.5 truncate text-xs sm:text-sm font-bold text-foreground group-hover:text-primary transition-colors">
+                  {top2.name}
+                </h4>
+                <p className="text-[11px] font-semibold text-muted-foreground">
+                  {top2.games > 0 ? `${top2.wins} ${top2.wins === 1 ? "Win" : "Wins"}` : "No games"}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-border/50 p-4 text-center text-xs text-muted-foreground">
+                #2 Open
+              </div>
+            )}
+
+            {/* 1st Place - Center (Gold - Elevated with Rotating Crown & Jewel) */}
+            {top1 ? (
+              <div
+                onClick={() => openPlayer(top1.id)}
+                className="group cursor-pointer relative -mt-3 rounded-2xl border-2 border-amber-500/50 bg-gradient-to-b from-amber-500/20 via-amber-500/10 to-card p-3 sm:p-4 text-center shadow-xl shadow-amber-500/10 transition hover:-translate-y-1.5 hover:border-amber-400"
+              >
+                <div className="relative mb-2 flex flex-col items-center">
+                  {/* Jewel sparkling on top */}
+                  <span className="animate-pulse text-sm filter drop-shadow-[0_0_8px_rgba(255,215,0,0.9)] z-10 -mb-1">
+                    💎
+                  </span>
+                  {/* 3D Rotating Crown */}
+                  <div className="animate-[spin_7s_linear_infinite] text-3xl sm:text-4xl filter drop-shadow-[0_0_12px_rgba(234,179,8,0.9)]">
+                    👑
+                  </div>
+                  <span className="mt-1 text-3xl sm:text-4xl">{animals[top1.animal] ?? "🦊"}</span>
+                </div>
+                <div className="inline-block rounded-full bg-amber-500/30 px-2.5 py-0.5 text-[10px] sm:text-[11px] font-black uppercase text-amber-300 shadow-sm">
+                  👑 #1 Champion
+                </div>
+                <h4 className="mt-1.5 truncate text-sm sm:text-base font-extrabold text-foreground group-hover:text-amber-400 transition-colors">
+                  {top1.name}
+                </h4>
+                <p className="text-[11px] font-bold text-amber-400/90">
+                  {top1.games > 0 ? `${top1.wins} ${top1.wins === 1 ? "Win" : "Wins"}` : "No games"}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-border/50 p-4 text-center text-xs text-muted-foreground">
+                #1 Open
+              </div>
+            )}
+
+            {/* 3rd Place - Right (Bronze) */}
+            {top3 ? (
+              <div
+                onClick={() => openPlayer(top3.id)}
+                className="group cursor-pointer rounded-2xl border border-amber-700/40 bg-gradient-to-b from-amber-700/15 via-amber-700/5 to-card p-3 sm:p-4 text-center shadow-lg transition hover:-translate-y-1 hover:border-amber-600"
+              >
+                <div className="relative mb-2 flex flex-col items-center">
+                  <span className="text-2xl filter drop-shadow-[0_0_8px_rgba(217,119,6,0.8)]">
+                    🥉
+                  </span>
+                  <span className="mt-1 text-2xl sm:text-3xl">{animals[top3.animal] ?? "🦊"}</span>
+                </div>
+                <div className="inline-block rounded-full bg-amber-700/20 px-2 py-0.5 text-[10px] font-black uppercase text-amber-400">
+                  #3 Rank
+                </div>
+                <h4 className="mt-1.5 truncate text-xs sm:text-sm font-bold text-foreground group-hover:text-primary transition-colors">
+                  {top3.name}
+                </h4>
+                <p className="text-[11px] font-semibold text-muted-foreground">
+                  {top3.games > 0 ? `${top3.wins} ${top3.wins === 1 ? "Win" : "Wins"}` : "No games"}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-border/50 p-4 text-center text-xs text-muted-foreground">
+                #3 Open
+              </div>
+            )}
           </div>
         </section>
       )}
