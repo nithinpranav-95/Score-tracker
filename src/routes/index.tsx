@@ -2947,6 +2947,36 @@ function LiveSession({
           </div>
         </div>
       )}
+
+      {showLaterConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+            <h3 className="font-heading text-xl font-bold text-foreground">Save & Continue Later?</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Are you sure? Round {round}'s scores will be saved and the game paused — you can pick
+              up right where you left off.
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowLaterConfirm(false)}
+                className="rounded-xl"
+              >
+                No, keep playing
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowLaterConfirm(false);
+                  handleSaveLater();
+                }}
+                className="rounded-xl bg-primary font-bold text-primary-foreground"
+              >
+                Yes, save & pause
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
