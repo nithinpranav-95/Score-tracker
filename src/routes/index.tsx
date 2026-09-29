@@ -2312,12 +2312,21 @@ function PlayView({
                 className="group cursor-pointer relative -mt-3 rounded-2xl border-2 border-amber-500/50 bg-gradient-to-b from-amber-500/20 via-amber-500/10 to-card p-3 sm:p-4 text-center shadow-xl shadow-amber-500/10 transition hover:-translate-y-1.5 hover:border-amber-400"
               >
                 <div className="relative mb-2 flex flex-col items-center">
+                  <style>{`
+                    @keyframes crownRotateY {
+                      0% { transform: rotateY(0deg); }
+                      100% { transform: rotateY(360deg); }
+                    }
+                  `}</style>
                   {/* Jewel sparkling on top */}
-                  <span className="animate-pulse text-sm filter drop-shadow-[0_0_8px_rgba(255,215,0,0.9)] z-10 -mb-1">
+                  <span className="animate-pulse text-xs sm:text-sm filter drop-shadow-[0_0_8px_rgba(255,215,0,0.9)] z-10 -mb-1">
                     💎
                   </span>
-                  {/* 3D Rotating Crown */}
-                  <div className="animate-[spin_7s_linear_infinite] text-3xl sm:text-4xl filter drop-shadow-[0_0_12px_rgba(234,179,8,0.9)]">
+                  {/* 3D Horizontally Rotating Crown */}
+                  <div
+                    style={{ animation: "crownRotateY 5s linear infinite" }}
+                    className="inline-block text-3xl sm:text-4xl filter drop-shadow-[0_0_12px_rgba(234,179,8,0.9)]"
+                  >
                     👑
                   </div>
                   <span className="mt-1 text-3xl sm:text-4xl">{animals[top1.animal] ?? "🦊"}</span>
