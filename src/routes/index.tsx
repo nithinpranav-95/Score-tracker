@@ -2621,6 +2621,8 @@ function LiveSession({
 }) {
   const [entries, setEntries] = useState<Record<string, number>>({});
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
+  const [confirmSaveRound, setConfirmSaveRound] = useState(false);
+  const [showLaterConfirm, setShowLaterConfirm] = useState(false);
 
   const adjustEntry = (id: string, by: number) =>
     setEntries((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + by }));
@@ -2637,6 +2639,11 @@ function LiveSession({
   const handleSaveRound = () => {
     saveRound(entries);
     setEntries({});
+  };
+  const handleSaveLater = () => {
+    const hasEntries = Object.values(entries).some((v) => v !== 0);
+    if (hasEntries) saveLater(entries);
+    else close();
   };
 
   // Static saved-score sort (cards never re-order while typing)
