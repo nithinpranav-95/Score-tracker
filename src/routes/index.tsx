@@ -1184,14 +1184,6 @@ function GameApp() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowCreateTroop(true)}
-              className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-xs font-bold text-primary-foreground shadow-md transition hover:brightness-110 active:scale-95"
-            >
-              <Users className="size-3.5" />
-              <span>Create Troop</span>
-            </button>
 
             <button
               onClick={() => setTab("players")}
@@ -2266,7 +2258,7 @@ function PlayView({
         </div>
       </section>
       <section className="mt-10">
-        <div className="flex items-center justify-between">
+        <div>
           <div>
             <h2 className="font-heading text-3xl font-bold">The squad</h2>
             <p className="text-sm text-muted-foreground">
@@ -2275,25 +2267,6 @@ function PlayView({
                 : `${players.length} friend${players.length === 1 ? "" : "s"} ready for game night`}
             </p>
           </div>
-          {openCreateTroop ? (
-            <button
-              type="button"
-              onClick={openCreateTroop}
-              className="flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3.5 py-2 text-xs font-bold text-primary transition hover:bg-primary/20"
-            >
-              <Users className="size-4" />
-              <span>Create a Troop</span>
-            </button>
-          ) : (
-            <Link
-              to="/auth"
-              search={{ mode: "create" }}
-              className="flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3.5 py-2 text-xs font-bold text-primary transition hover:bg-primary/20"
-            >
-              <Users className="size-4" />
-              <span>Create a Troop</span>
-            </Link>
-          )}
         </div>
 
         {players.length === 0 ? (
