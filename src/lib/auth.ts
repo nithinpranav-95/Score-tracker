@@ -89,7 +89,7 @@ export interface AuthUser {
   spirit_animal: string;
   quote?: string;
   troop?: string;
-  email?: string;
+  email?: string | undefined;
 }
 
 export interface StoredAccount {

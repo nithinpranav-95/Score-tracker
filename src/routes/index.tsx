@@ -2122,7 +2122,7 @@ function PlayView({
   openCreateTroop?: () => void;
   goToPlayers?: () => void;
   currentUserId?: string | undefined;
-  authUserName?: string;
+  authUserName?: string | undefined;
   ongoingSession?: ActiveSessionData | null;
   onResumeOngoing?: () => void;
   onDiscardOngoing?: () => void;
@@ -3683,7 +3683,7 @@ function DeleteSessionModal({
   session: PastSession;
   close: () => void;
   onConfirmDelete: (sessionId: string) => Promise<void> | void;
-  userEmail?: string;
+  userEmail?: string | undefined;
   onSaveUserEmail?: (email: string) => void;
 }) {
   const [emailInput, setEmailInput] = useState(userEmail || "");
