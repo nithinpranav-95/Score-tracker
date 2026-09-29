@@ -2642,7 +2642,7 @@ function LiveSession({
   };
   const handleSaveLater = () => {
     const hasEntries = Object.values(entries).some((v) => v !== 0);
-    if (hasEntries) saveLater(entries);
+    if (hasEntries) saveLater?.(entries);
     else close();
   };
 
