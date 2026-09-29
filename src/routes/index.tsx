@@ -635,7 +635,7 @@ function GameApp() {
                 id: r.playerId || crypto.randomUUID(),
                 display_name: r.name,
                 spirit_animal: "fox",
-                quote: "Game night legend",
+                quote: "Squad legend",
               });
             }
           });
@@ -1573,7 +1573,7 @@ function ProfileSheet({
   const animalInfo = spiritAnimals[player.spirit_animal] ?? {
     emoji: animals[player.spirit_animal] ?? "🦊",
     title: player.spirit_animal,
-    defaultQuote: "Game night ready",
+    defaultQuote: "Ready to play",
     badgeBg: "from-primary/20 to-secondary border-border",
   };
   const quote = cleanQuote(player.quote) || animalInfo.defaultQuote;
@@ -1773,7 +1773,7 @@ function EditPlayerModal({
           onClick={() => {
             const parsed = parseQuoteAuth(player.quote);
             const finalQuote =
-              quote.trim() || spiritAnimals[animal]?.defaultQuote || "Game night ready";
+              quote.trim() || spiritAnimals[animal]?.defaultQuote || "Ready to play";
             const updatedQuote = parsed.auth
               ? encodeQuoteAuth(finalQuote, parsed.auth.salt, parsed.auth.hash)
               : finalQuote;
@@ -2000,7 +2000,7 @@ function PlayersView({
             const animalInfo = spiritAnimals[p.spirit_animal] ?? {
               emoji: animals[p.spirit_animal] ?? "🦊",
               title: p.spirit_animal,
-              defaultQuote: "Game night ready",
+              defaultQuote: "Ready to play",
               badgeBg: "from-primary/20 to-secondary border-border",
             };
             const quote = cleanQuote(p.quote) || animalInfo.defaultQuote;
@@ -2321,7 +2321,7 @@ function PlayView({
               const animalInfo = spiritAnimals[p.spirit_animal] ?? {
                 emoji: animals[p.spirit_animal] ?? "🦊",
                 title: p.spirit_animal,
-                defaultQuote: "Game night ready",
+                defaultQuote: "Ready to play",
               };
               const quote = cleanQuote(p.quote) || animalInfo.defaultQuote;
               return (
