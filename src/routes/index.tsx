@@ -4,6 +4,7 @@ import {
   ArrowUpDown,
   BarChart3,
   Check,
+  ChevronDown,
   CirclePlus,
   Crown,
   Gamepad2,
@@ -2128,6 +2129,8 @@ function PlayView({
     return 0;
   });
 
+  const [isStandingsExpanded, setIsStandingsExpanded] = useState(false);
+
   const isScorekeeper = checkIsScorekeeper(ongoingSession || null, currentUserId, authUserName);
   const isLockedByOther = Boolean(ongoingSession?.isLocked && !isScorekeeper);
 
@@ -2187,50 +2190,67 @@ function PlayView({
             </div>
 
             {/* Bottom row: Live Rankings & Player Scores */}
-            <div className="mt-5">
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Current Standings ({ongoingSession.livePlayers?.length ?? 0} players)
-                </p>
-                <p className="text-xs font-semibold text-primary">
-                  Round {ongoingSession.round}
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
-                {[...(ongoingSession.livePlayers || [])]
-                  .sort((a, b) =>
-                    ongoingSession.game.high_score_wins ? b.score - a.score : a.score - b.score,
-                  )
-                  .map((player, idx) => (
-                    <div
-                      key={player.id}
-                      className={`flex items-center gap-2.5 rounded-xl border p-2.5 transition ${
-                        idx === 0
-                          ? "border-primary/40 bg-primary/10 shadow-sm"
-                          : "border-border/60 bg-card/60"
-                      }`}
-                    >
-                      <span
-                        className={`grid size-7 place-items-center rounded-lg text-xs font-black ${
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => setIsStandingsExpanded((prev) => !prev)}
+                className="flex w-full items-center justify-between rounded-xl p-2.5 transition hover:bg-secondary/40 active:scale-[0.99] group cursor-pointer"
+              >
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground group-hover:text-foreground">
+                  <span>Current Standings ({ongoingSession.livePlayers?.length ?? 0} players)</span>
+                  <ChevronDown
+                    className={`size-4 text-primary transition-transform duration-200 ${
+                      isStandingsExpanded ? "rotate-180" : ""
+                    }`}
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-semibold text-primary">
+                    Round {ongoingSession.round}
+                  </span>
+                  <span className="rounded-lg bg-secondary/80 px-2.5 py-1 text-[11px] font-bold text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary transition-colors">
+                    {isStandingsExpanded ? "Hide scores" : "Expand scores"}
+                  </span>
+                </div>
+              </button>
+
+              {isStandingsExpanded && (
+                <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
+                  {[...(ongoingSession.livePlayers || [])]
+                    .sort((a, b) =>
+                      ongoingSession.game.high_score_wins ? b.score - a.score : a.score - b.score,
+                    )
+                    .map((player, idx) => (
+                      <div
+                        key={player.id}
+                        className={`flex items-center gap-2.5 rounded-xl border p-2.5 transition ${
                           idx === 0
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-secondary text-muted-foreground"
+                            ? "border-primary/40 bg-primary/10 shadow-sm"
+                            : "border-border/60 bg-card/60"
                         }`}
                       >
-                        #{idx + 1}
-                      </span>
-                      <span className="text-xl">{animals[player.spirit_animal] ?? "🦊"}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-bold text-foreground">
-                          {player.display_name}
-                        </p>
-                        <p className="text-[11px] font-black text-primary tabular-nums">
-                          {player.score} pts
-                        </p>
+                        <span
+                          className={`grid size-7 place-items-center rounded-lg text-xs font-black ${
+                            idx === 0
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-secondary text-muted-foreground"
+                          }`}
+                        >
+                          #{idx + 1}
+                        </span>
+                        <span className="text-xl">{animals[player.spirit_animal] ?? "🦊"}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-bold text-foreground">
+                            {player.display_name}
+                          </p>
+                          <p className="text-[11px] font-black text-primary tabular-nums">
+                            {player.score} pts
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-              </div>
+                    ))}
+                </div>
+              )}
             </div>
           </div>
         </section>
