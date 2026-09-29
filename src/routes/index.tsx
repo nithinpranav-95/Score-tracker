@@ -1096,13 +1096,25 @@ function GameApp() {
         }}
         onAddBenchPlayer={addBenchPlayerToLive}
         saveLater={(entries) => {
-          saveRound(entries);
-          if (ongoingSession) {
-            persistActiveSession({
-              ...ongoingSession,
-              isLocked: false,
-            });
-          }
+          const updatedPlayers = livePlayers.map((p) => ({
+            ...p,
+            score: p.score + (entries[p.id] ?? 0),
+          }));
+          const updatedHistory = [...roundHistory, entries];
+          const updatedRound = round + 1;
+          setLivePlayers(updatedPlayers);
+          setRoundHistory(updatedHistory);
+          setRound(updatedRound);
+          persistActiveSession({
+            game: liveGame,
+            livePlayers: updatedPlayers,
+            round: updatedRound,
+            roundHistory: updatedHistory,
+            scorekeeperId:
+              ongoingSession?.scorekeeperId || currentPlayerId || authUser?.id || "guest",
+            scorekeeperName: ongoingSession?.scorekeeperName || authUser?.name || "Trooper",
+            isLocked: false,
+          });
           setLiveGame(null);
         }}
       />
