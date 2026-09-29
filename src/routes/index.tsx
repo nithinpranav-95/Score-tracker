@@ -431,10 +431,12 @@ function computePlayerRanks(stats: PlayerStat[]): Map<string, number> {
   const rankMap = new Map<string, number>();
   let currentRank = 1;
   for (let i = 0; i < stats.length; i++) {
+    const curr = stats[i];
+    if (!curr) continue;
     if (i > 0) {
       const prev = stats[i - 1];
-      const curr = stats[i];
       const isTied =
+        prev !== undefined &&
         curr.wins === prev.wins &&
         curr.seconds === prev.seconds &&
         curr.thirds === prev.thirds &&
@@ -443,7 +445,7 @@ function computePlayerRanks(stats: PlayerStat[]): Map<string, number> {
         currentRank = i + 1;
       }
     }
-    rankMap.set(stats[i].id, currentRank);
+    rankMap.set(curr.id, currentRank);
   }
   return rankMap;
 }
@@ -1096,13 +1098,25 @@ function GameApp() {
         }}
         onAddBenchPlayer={addBenchPlayerToLive}
         saveLater={(entries) => {
-          saveRound(entries);
-          if (ongoingSession) {
-            persistActiveSession({
-              ...ongoingSession,
-              isLocked: false,
-            });
-          }
+          const updatedPlayers = livePlayers.map((p) => ({
+            ...p,
+            score: p.score + (entries[p.id] ?? 0),
+          }));
+          const updatedHistory = [...roundHistory, entries];
+          const updatedRound = round + 1;
+          setLivePlayers(updatedPlayers);
+          setRoundHistory(updatedHistory);
+          setRound(updatedRound);
+          persistActiveSession({
+            game: liveGame,
+            livePlayers: updatedPlayers,
+            round: updatedRound,
+            roundHistory: updatedHistory,
+            scorekeeperId:
+              ongoingSession?.scorekeeperId || currentPlayerId || authUser?.id || "guest",
+            scorekeeperName: ongoingSession?.scorekeeperName || authUser?.name || "Trooper",
+            isLocked: false,
+          });
           setLiveGame(null);
         }}
       />
@@ -1935,7 +1949,7 @@ function PlayersView({
   sessions: PastSession[];
   openPlayer: (id: string) => void;
   openEditPlayer: (player: Player) => void;
-  currentUserId?: string;
+  currentUserId?: string | undefined;
 }) {
   const statsMap = new Map<string, PlayerStat>();
   playerStats(players, sessions).forEach((s) => statsMap.set(s.id, s));
@@ -2107,8 +2121,8 @@ function PlayView({
   openAddPlayer?: () => void;
   openCreateTroop?: () => void;
   goToPlayers?: () => void;
-  currentUserId?: string;
-  authUserName?: string;
+  currentUserId?: string | undefined;
+  authUserName?: string | undefined;
   ongoingSession?: ActiveSessionData | null;
   onResumeOngoing?: () => void;
   onDiscardOngoing?: () => void;
@@ -2663,7 +2677,7 @@ function LiveSession({
   if (hasAnyEntry) {
     avgLabel = "Round avg";
     avgCount = providedIds.length;
-    avgSum = providedIds.reduce((sum, id) => sum + entries[id], 0);
+    avgSum = providedIds.reduce((sum, id) => sum + (entries[id] ?? 0), 0);
   } else {
     avgLabel = "Group avg";
     const playersWithPoints = players.filter(p => p.score !== 0);
@@ -3669,7 +3683,7 @@ function DeleteSessionModal({
   session: PastSession;
   close: () => void;
   onConfirmDelete: (sessionId: string) => Promise<void> | void;
-  userEmail?: string;
+  userEmail?: string | undefined;
   onSaveUserEmail?: (email: string) => void;
 }) {
   const [emailInput, setEmailInput] = useState(userEmail || "");
