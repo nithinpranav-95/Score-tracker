@@ -2886,7 +2886,7 @@ function LiveSession({
                 else close();
               }}
               variant="outline"
-              className="flex h-14 shrink-0 rounded-xl border-primary/30 text-sm font-bold text-primary hover:bg-primary/10"
+              className="flex h-14 flex-1 rounded-xl border-primary/30 text-base font-bold text-primary hover:bg-primary/10"
             >
               <Pause className="size-4" /> Save & Continue Later
             </Button>
