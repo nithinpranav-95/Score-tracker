@@ -107,8 +107,9 @@ type ActiveSessionData = {
   livePlayers: LivePlayer[];
   round: number;
   roundHistory: Record<string, number>[];
-  scorekeeperId?: string;
-  scorekeeperName?: string;
+  scorekeeperId?: string | undefined;
+  scorekeeperName?: string | undefined;
+
   isLocked?: boolean;
 };
 
