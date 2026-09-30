@@ -113,9 +113,9 @@ type ActiveSessionData = {
 };
 
 function getOngoingSessionDocId(troopName: string): string {
-  const clean = (troopName || TROOP_NAME).toLowerCase().replace(/[^a-z0-9_-]/g, "_");
-  return `ongoing_session_${clean}`;
+  return (troopName || TROOP_NAME).trim().toLowerCase();
 }
+
 
 function loadActiveGameSession(troopName: string): ActiveSessionData | null {
   if (typeof window === "undefined" || !troopName) return null;
