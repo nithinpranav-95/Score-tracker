@@ -5,10 +5,10 @@ import {
   BarChart3,
   Check,
   ChevronDown,
-  ChevronUp,
   CirclePlus,
   Crown,
   Gamepad2,
+  GripVertical,
   History,
   KeyRound,
   LogIn,
@@ -2837,22 +2837,29 @@ function LiveSession({
     }
   });
 
-  const movePlayerUp = (index: number) => {
-    if (index <= 0) return;
-    const currentIds = sorted.map((p) => p.id);
-    const temp = currentIds[index - 1]!;
-    currentIds[index - 1] = currentIds[index]!;
-    currentIds[index] = temp;
-    setCustomPlayerOrder(currentIds);
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [dragEnabledIdx, setDragEnabledIdx] = useState<number | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIdx(index);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", index.toString());
   };
 
-  const movePlayerDown = (index: number) => {
-    if (index >= sorted.length - 1) return;
+  const handleDragEnter = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIdx === null || draggedIdx === index) return;
     const currentIds = sorted.map((p) => p.id);
-    const temp = currentIds[index + 1]!;
-    currentIds[index + 1] = currentIds[index]!;
-    currentIds[index] = temp;
+    const draggedId = currentIds[draggedIdx];
+    currentIds.splice(draggedIdx, 1);
+    currentIds.splice(index, 0, draggedId!);
     setCustomPlayerOrder(currentIds);
+    setDraggedIdx(index);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIdx(null);
+    setDragEnabledIdx(null);
   };
 
   // Chart uses ONLY saved scores — updates only after "Save Round" is pressed
@@ -2971,7 +2978,7 @@ function LiveSession({
           <div>
             <h2 className="font-heading text-xl font-bold">Round {round} scores</h2>
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              Enter this round's points (Arrange order using ▲ ▼)
+              Enter this round's points (Drag ☰ to reorder)
             </p>
           </div>
           <div className="flex items-center gap-1 rounded-xl border border-border/60 bg-secondary/60 p-1">
@@ -3004,37 +3011,33 @@ function LiveSession({
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-3" onDragOver={(e) => e.preventDefault()}>
           {sorted.map((p: LivePlayer, index: number) => {
             const rank = rankById.get(p.id);
             const entry = entries[p.id] ?? 0;
+            const isDragging = draggedIdx === index;
             return (
               <div
                 key={p.id}
-                className="grid grid-cols-[1.75rem_2.5rem_2.75rem_minmax(0,1fr)] items-center gap-2 rounded-2xl border border-border bg-card p-3 sm:grid-cols-[1.75rem_2.5rem_3rem_minmax(0,1fr)_3rem_5rem_3rem]"
+                draggable={dragEnabledIdx === index}
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragEnter={(e) => handleDragEnter(e, index)}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => e.preventDefault()}
+                className={`grid grid-cols-[1.75rem_2.5rem_2.75rem_minmax(0,1fr)] items-center gap-2 rounded-2xl border bg-card p-3 transition-colors sm:grid-cols-[1.75rem_2.5rem_3rem_minmax(0,1fr)_3rem_5rem_3rem] ${
+                  isDragging ? "opacity-40 border-primary" : "border-border"
+                }`}
               >
-                {/* Re-order Up / Down Controls */}
-                <div className="flex flex-col items-center justify-center -space-y-1">
-                  <button
-                    type="button"
-                    onClick={() => movePlayerUp(index)}
-                    disabled={index === 0}
-                    title="Move up"
-                    aria-label={`Move ${p.display_name} up`}
-                    className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-20 transition"
-                  >
-                    <ChevronUp className="size-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => movePlayerDown(index)}
-                    disabled={index === sorted.length - 1}
-                    title="Move down"
-                    aria-label={`Move ${p.display_name} down`}
-                    className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-20 transition"
-                  >
-                    <ChevronDown className="size-4" />
-                  </button>
+                {/* Re-order Handle */}
+                <div
+                  onMouseEnter={() => setDragEnabledIdx(index)}
+                  onMouseLeave={() => setDragEnabledIdx(null)}
+                  onTouchStart={() => setDragEnabledIdx(index)}
+                  onTouchEnd={() => setDragEnabledIdx(null)}
+                  title="Drag to reorder"
+                  className="flex cursor-grab items-center justify-center text-muted-foreground transition hover:text-primary active:cursor-grabbing"
+                >
+                  <GripVertical className="size-5" />
                 </div>
 
                 <span
