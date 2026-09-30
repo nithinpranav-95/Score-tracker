@@ -840,17 +840,40 @@ function GameApp() {
   }
 
   async function handleUpdatePlayer(updated: Player) {
-    setPlayers((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    const newName = updated.display_name.trim();
+    const renamed = { ...updated, display_name: newName };
+    setPlayers((prev) => prev.map((p) => (p.id === updated.id ? renamed : p)));
     setEditingPlayer(null);
+    // Keep the logged-in session in sync so the old name isn't re-added
+    if (authUser && authUser.id === updated.id) {
+      setCurrentUser({ ...authUser, name: newName, spirit_animal: updated.spirit_animal });
+    }
+    // Rename in finished games history (local + cloud)
+    const affected = sessions.filter((s) => s.results.some((r) => r.playerId === updated.id));
+    if (affected.length) {
+      setSessions((list) =>
+        list.map((s) => ({
+          ...s,
+          results: s.results.map((r) => (r.playerId === updated.id ? { ...r, name: newName } : r)),
+        })),
+      );
+    }
     const { error } = await supabase
       .from("players")
       .update({
-        name: updated.display_name,
+        name: newName,
         spirit_animal: updated.spirit_animal,
         quote: updated.quote ?? null,
       })
       .eq("id", updated.id);
     if (error) console.debug("Failed to update player:", error);
+    for (const s of affected) {
+      if (!/^[0-9a-f]{8}-/i.test(s.id)) continue;
+      const results = s.results.map((r) =>
+        r.playerId === updated.id ? { ...r, name: newName } : r,
+      );
+      await supabase.from("game_results").update({ results }).eq("id", s.id);
+    }
   }
 
   async function handleDeletePlayer(id: string) {
