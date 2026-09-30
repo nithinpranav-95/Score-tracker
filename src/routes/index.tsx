@@ -492,6 +492,17 @@ function GameApp() {
     syncOngoingSession();
     const interval = setInterval(syncOngoingSession, 4000);
 
+    const channel = supabase
+      .channel(`live_sessions_${getOngoingSessionDocId(currentTroop)}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "live_sessions" },
+        () => {
+          syncOngoingSession();
+        },
+      )
+      .subscribe();
+
     function handleLocalSync() {
       const activeData = loadActiveGameSession(currentTroop);
       setOngoingSession(activeData);
@@ -507,9 +518,11 @@ function GameApp() {
     return () => {
       isCancelled = true;
       clearInterval(interval);
+      supabase.removeChannel(channel);
       window.removeEventListener("scoreup_session_changed", handleLocalSync);
       window.removeEventListener("storage", handleLocalSync);
     };
+
   }, [authUser, hydrated]);
 
   function handleTriggerAddPlayer() {
