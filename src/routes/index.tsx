@@ -5,6 +5,7 @@ import {
   BarChart3,
   Check,
   ChevronDown,
+  ChevronUp,
   CirclePlus,
   Crown,
   Gamepad2,
@@ -1312,6 +1313,7 @@ function GameApp() {
             openAddPlayer={handleTriggerAddPlayer}
             openCreateTroop={() => setShowCreateTroop(true)}
             goToPlayers={() => setTab("players")}
+            goToRanks={() => setTab("ranks")}
             currentUserId={currentPlayerId}
             authUserName={authUser?.name}
             ongoingSession={ongoingSession}
@@ -2099,6 +2101,7 @@ function PlayView({
   openAddPlayer,
   openCreateTroop,
   goToPlayers,
+  goToRanks,
   currentUserId,
   authUserName,
   ongoingSession,
@@ -2114,6 +2117,7 @@ function PlayView({
   openAddPlayer?: () => void;
   openCreateTroop?: () => void;
   goToPlayers?: () => void;
+  goToRanks?: () => void;
   currentUserId?: string | undefined;
   authUserName?: string | undefined;
   ongoingSession?: ActiveSessionData | null;
@@ -2273,7 +2277,17 @@ function PlayView({
               <Crown className="size-5 text-amber-400" />
               <h3 className="font-heading text-xl font-bold text-foreground">Troop Leaders</h3>
             </div>
-            <span className="text-xs font-bold text-muted-foreground">Top 3 Standings</span>
+            {goToRanks ? (
+              <button
+                type="button"
+                onClick={goToRanks}
+                className="text-xs font-bold text-primary hover:underline transition cursor-pointer"
+              >
+                Click here for full standings &rarr;
+              </button>
+            ) : (
+              <span className="text-xs font-bold text-muted-foreground">Top 3 Standings</span>
+            )}
           </div>
 
           <div className="grid grid-cols-3 gap-2.5 sm:gap-4 items-end pt-2">
@@ -2735,6 +2749,7 @@ function LiveSession({
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [confirmSaveRound, setConfirmSaveRound] = useState(false);
   const [showLaterConfirm, setShowLaterConfirm] = useState(false);
+  const [customPlayerOrder, setCustomPlayerOrder] = useState<string[] | null>(null);
 
   const adjustEntry = (id: string, by: number) =>
     setEntries((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + by }));
@@ -2758,11 +2773,44 @@ function LiveSession({
     else close();
   };
 
-  // Static saved-score sort (cards never re-order while typing)
-  const sorted = [...players].sort((a, b) =>
+  // Static saved-score sort (default ranking)
+  const defaultSorted = [...players].sort((a, b) =>
     game.high_score_wins ? b.score - a.score : a.score - b.score,
   );
-  const rankById = new Map(sorted.map((p, i) => [p.id, i + 1]));
+  const rankById = new Map(defaultSorted.map((p, i) => [p.id, i + 1]));
+
+  const activeOrder = customPlayerOrder ?? defaultSorted.map((p) => p.id);
+  const playerMap = new Map(players.map((p) => [p.id, p]));
+
+  // Array of live players in active desirable order
+  const sorted = activeOrder
+    .map((id) => playerMap.get(id))
+    .filter((p): p is LivePlayer => p !== undefined);
+
+  // Append any newly added players not yet in activeOrder
+  players.forEach((p) => {
+    if (!sorted.some((sp) => sp.id === p.id)) {
+      sorted.push(p);
+    }
+  });
+
+  const movePlayerUp = (index: number) => {
+    if (index <= 0) return;
+    const currentIds = sorted.map((p) => p.id);
+    const temp = currentIds[index - 1]!;
+    currentIds[index - 1] = currentIds[index]!;
+    currentIds[index] = temp;
+    setCustomPlayerOrder(currentIds);
+  };
+
+  const movePlayerDown = (index: number) => {
+    if (index >= sorted.length - 1) return;
+    const currentIds = sorted.map((p) => p.id);
+    const temp = currentIds[index + 1]!;
+    currentIds[index + 1] = currentIds[index]!;
+    currentIds[index] = temp;
+    setCustomPlayerOrder(currentIds);
+  };
 
   // Chart uses ONLY saved scores — updates only after "Save Round" is pressed
   const chartData = [...players]
@@ -2778,7 +2826,7 @@ function LiveSession({
   const benchPlayers = (allSquadPlayers ?? []).filter(
     (sp: Player) => !players.some((lp: LivePlayer) => lp.id === sp.id),
   );
-  const leaderSaved = sorted[0];
+  const leaderSaved = defaultSorted[0];
 
   // Live averages per player: saved total + current unsaved entry
   const liveAverages = players.map((p) => ({
@@ -2876,19 +2924,76 @@ function LiveSession({
           </div>
         </div>
 
-        <div className="mb-3 flex items-center justify-between px-1">
-          <h2 className="font-heading text-xl font-bold">Round {round} scores</h2>
-          <p className="text-xs font-bold text-muted-foreground">ENTER THIS ROUND'S POINTS</p>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
+          <div>
+            <h2 className="font-heading text-xl font-bold">Round {round} scores</h2>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Enter this round's points (Arrange order using ▲ ▼)
+            </p>
+          </div>
+          <div className="flex items-center gap-1 rounded-xl border border-border/60 bg-secondary/60 p-1">
+            <button
+              type="button"
+              onClick={() => setCustomPlayerOrder(null)}
+              className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition ${
+                customPlayerOrder === null
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              By Rank
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setCustomPlayerOrder(
+                  [...players].sort((a, b) => a.display_name.localeCompare(b.display_name)).map((p) => p.id)
+                )
+              }
+              className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition ${
+                customPlayerOrder !== null
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              A–Z
+            </button>
+          </div>
         </div>
+
         <div className="space-y-3">
-          {sorted.map((p: LivePlayer) => {
+          {sorted.map((p: LivePlayer, index: number) => {
             const rank = rankById.get(p.id);
             const entry = entries[p.id] ?? 0;
             return (
               <div
                 key={p.id}
-                className="grid grid-cols-[2.5rem_2.75rem_minmax(0,1fr)] items-center gap-2 rounded-2xl border border-border bg-card p-3 sm:grid-cols-[2.5rem_3rem_minmax(0,1fr)_3rem_5rem_3rem]"
+                className="grid grid-cols-[1.75rem_2.5rem_2.75rem_minmax(0,1fr)] items-center gap-2 rounded-2xl border border-border bg-card p-3 sm:grid-cols-[1.75rem_2.5rem_3rem_minmax(0,1fr)_3rem_5rem_3rem]"
               >
+                {/* Re-order Up / Down Controls */}
+                <div className="flex flex-col items-center justify-center -space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => movePlayerUp(index)}
+                    disabled={index === 0}
+                    title="Move up"
+                    aria-label={`Move ${p.display_name} up`}
+                    className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-20 transition"
+                  >
+                    <ChevronUp className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => movePlayerDown(index)}
+                    disabled={index === sorted.length - 1}
+                    title="Move down"
+                    aria-label={`Move ${p.display_name} down`}
+                    className="p-0.5 text-muted-foreground hover:text-primary disabled:opacity-20 transition"
+                  >
+                    <ChevronDown className="size-4" />
+                  </button>
+                </div>
+
                 <span
                   aria-label={`Rank ${rank}`}
                   className={`grid size-10 place-items-center rounded-xl font-black ${rank === 1 ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}
@@ -2910,7 +3015,7 @@ function LiveSession({
                     )}
                   </p>
                 </div>
-                <div className="col-span-3 grid grid-cols-[3rem_1fr_3rem] gap-2 sm:col-span-1 sm:contents">
+                <div className="col-span-4 grid grid-cols-[3rem_1fr_3rem] gap-2 sm:col-span-1 sm:contents">
                   <Button
                     aria-label={`Subtract from ${p.display_name}`}
                     onClick={() => adjustEntry(p.id, -1)}
@@ -3118,7 +3223,6 @@ function RanksView({
     selectedGame === "all" ? sessions : sessions.filter((s) => s.gameName === selectedGame);
   const stats = playerStats(players, filteredSessions);
   const [metric, setMetric] = useState<"rank" | "rate" | "wins">("rank");
-  const [layout, setLayout] = useState<"columns" | "rows">("columns");
   const [sortOrder, setSortOrder] = useState<"desc" | "asc" | "alpha">("alpha");
 
   // Create rank mapping based on position ordering (#1, #2, #3...) with equal ranks for ties
@@ -3417,148 +3521,67 @@ function RanksView({
                     : "Alphabetical"}
               </span>
             </button>
-
-            <div className="flex items-center rounded-xl border border-border/60 bg-secondary/80 p-1">
-              <button
-                type="button"
-                onClick={() => setLayout("columns")}
-                className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
-                  layout === "columns"
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Columns
-              </button>
-              <button
-                type="button"
-                onClick={() => setLayout("rows")}
-                className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
-                  layout === "rows"
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Rows
-              </button>
-            </div>
           </div>
         </div>
 
         <div className="mt-6 w-full">
-          {layout === "columns" ? (
-            <ResponsiveContainer width="100%" height={380}>
-              <BarChart data={sortedData} margin={{ top: 28, right: 16, left: -10, bottom: 20 }}>
-                <CartesianGrid
-                  stroke="var(--border)"
-                  strokeDasharray="3 3"
-                  vertical={false}
-                  opacity={0.6}
+          <ResponsiveContainer width="100%" height={Math.max(260, sortedData.length * 52)}>
+            <BarChart
+              data={sortedData}
+              layout="vertical"
+              margin={{ top: 10, right: 48, left: 24, bottom: 10 }}
+            >
+              <CartesianGrid
+                stroke="var(--border)"
+                strokeDasharray="3 3"
+                horizontal={false}
+                opacity={0.6}
+              />
+              <XAxis
+                type="number"
+                stroke="var(--muted-foreground)"
+                domain={metric === "rank" ? [0, squadSize] : metric === "rate" ? [0, 100] : [0, "auto"]}
+                tickFormatter={(v) => {
+                  if (metric === "rank") {
+                    const r = squadSize - Math.round(v) + 1;
+                    return r >= 1 && r <= squadSize ? `#${r}` : "";
+                  }
+                  return metric === "rate" ? `${v}%` : `${v}`;
+                }}
+                allowDecimals={false}
+                tickLine={false}
+              />
+              <YAxis
+                type="category"
+                dataKey="nameWithRank"
+                stroke="var(--muted-foreground)"
+                tick={{ fontSize: 13, fontWeight: 600 }}
+                tickLine={false}
+              />
+              <Tooltip content={<CustomStatsTooltip />} />
+              <Bar dataKey="value" radius={[0, 10, 10, 0]} minPointSize={4}>
+                <LabelList
+                  dataKey="displayLabel"
+                  position="right"
+                  fill="currentColor"
+                  className="text-xs font-black fill-foreground"
+                  offset={8}
                 />
-                <XAxis
-                  dataKey="nameWithRank"
-                  stroke="var(--muted-foreground)"
-                  tick={{ fontSize: 13, fontWeight: 600 }}
-                  tickLine={false}
-                  dy={8}
-                />
-                <YAxis
-                  stroke="var(--muted-foreground)"
-                  tick={{ fontSize: 12 }}
-                  tickLine={false}
-                  domain={metric === "rank" ? [0, squadSize] : metric === "rate" ? [0, 100] : [0, "auto"]}
-                  tickFormatter={(v) => {
-                    if (metric === "rank") {
-                      const r = squadSize - Math.round(v) + 1;
-                      return r >= 1 && r <= squadSize ? `#${r}` : "";
+                {sortedData.map((entry, index) => (
+                  <Cell
+                    key={entry.id}
+                    fill={
+                      entry.value === 0
+                        ? "rgba(120, 120, 140, 0.25)"
+                        : BAR_COLORS[index % BAR_COLORS.length]
                     }
-                    return metric === "rate" ? `${v}%` : `${v}`;
-                  }}
-                  allowDecimals={false}
-                />
-                <Tooltip content={<CustomStatsTooltip />} />
-                <Bar dataKey="value" radius={[10, 10, 0, 0]} minPointSize={4}>
-                  <LabelList
-                    dataKey="displayLabel"
-                    position="top"
-                    fill="currentColor"
-                    className="text-xs font-black fill-foreground"
-                    offset={8}
+                    onClick={() => openPlayer && openPlayer(entry.id)}
+                    className="cursor-pointer"
                   />
-                  {sortedData.map((entry, index) => (
-                    <Cell
-                      key={entry.id}
-                      fill={
-                        entry.value === 0
-                          ? "rgba(120, 120, 140, 0.25)"
-                          : BAR_COLORS[index % BAR_COLORS.length]
-                      }
-                      onClick={() => openPlayer && openPlayer(entry.id)}
-                      className="cursor-pointer"
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <ResponsiveContainer width="100%" height={Math.max(260, sortedData.length * 52)}>
-              <BarChart
-                data={sortedData}
-                layout="vertical"
-                margin={{ top: 10, right: 48, left: 24, bottom: 10 }}
-              >
-                <CartesianGrid
-                  stroke="var(--border)"
-                  strokeDasharray="3 3"
-                  horizontal={false}
-                  opacity={0.6}
-                />
-                <XAxis
-                  type="number"
-                  stroke="var(--muted-foreground)"
-                  domain={metric === "rank" ? [0, squadSize] : metric === "rate" ? [0, 100] : [0, "auto"]}
-                  tickFormatter={(v) => {
-                    if (metric === "rank") {
-                      const r = squadSize - Math.round(v) + 1;
-                      return r >= 1 && r <= squadSize ? `#${r}` : "";
-                    }
-                    return metric === "rate" ? `${v}%` : `${v}`;
-                  }}
-                  allowDecimals={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="nameWithRank"
-                  stroke="var(--muted-foreground)"
-                  tick={{ fontSize: 13, fontWeight: 600 }}
-                  tickLine={false}
-                />
-                <Tooltip content={<CustomStatsTooltip />} />
-                <Bar dataKey="value" radius={[0, 10, 10, 0]} minPointSize={4}>
-                  <LabelList
-                    dataKey="displayLabel"
-                    position="right"
-                    fill="currentColor"
-                    className="text-xs font-black fill-foreground"
-                    offset={8}
-                  />
-                  {sortedData.map((entry, index) => (
-                    <Cell
-                      key={entry.id}
-                      fill={
-                        entry.value === 0
-                          ? "rgba(120, 120, 140, 0.25)"
-                          : BAR_COLORS[index % BAR_COLORS.length]
-                      }
-                      onClick={() => openPlayer && openPlayer(entry.id)}
-                      className="cursor-pointer"
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
