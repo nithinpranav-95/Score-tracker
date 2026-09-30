@@ -149,11 +149,10 @@ function checkIsScorekeeper(
 async function loadActiveGameSessionCloud(troopName: string): Promise<ActiveSessionData | null> {
   if (!troopName) return null;
   try {
-    const docId = getOngoingSessionDocId(troopName);
     const { data, error } = await supabase
-      .from("game_results")
+      .from("live_sessions")
       .select("*")
-      .eq("id", docId)
+      .eq("troop", getOngoingSessionDocId(troopName))
       .maybeSingle();
 
     if (error) {
@@ -167,20 +166,17 @@ async function loadActiveGameSessionCloud(troopName: string): Promise<ActiveSess
       return null;
     }
 
-    const resultsPayload = data.results as any;
-    if (resultsPayload && resultsPayload.game) {
-      const cloudData: ActiveSessionData = {
-        game: resultsPayload.game,
-        livePlayers: resultsPayload.livePlayers || [],
-        round: data.rounds || 1,
-        roundHistory: (data.rounds_data as Record<string, number>[]) || [],
-        scorekeeperId: resultsPayload.scorekeeperId,
-        scorekeeperName: resultsPayload.scorekeeperName,
-        isLocked: Boolean(resultsPayload.isLocked),
-      };
-      saveActiveGameSession(troopName, cloudData);
-      return cloudData;
-    }
+    const cloudData: ActiveSessionData = {
+      game: data.game as unknown as Game,
+      livePlayers: (data.live_players as unknown as LivePlayer[]) || [],
+      round: data.round || 1,
+      roundHistory: (data.round_history as unknown as Record<string, number>[]) || [],
+      scorekeeperId: data.scorekeeper_id ?? undefined,
+      scorekeeperName: data.scorekeeper_name ?? undefined,
+      isLocked: Boolean(data.is_locked),
+    };
+    saveActiveGameSession(troopName, cloudData);
+    return cloudData;
   } catch (e) {
     console.debug("Failed to fetch active session from cloud:", e);
   }
@@ -202,23 +198,20 @@ async function saveActiveGameSessionCloud(troopName: string, data: ActiveSession
   if (!troopName || !data || !data.game) return;
   saveActiveGameSession(troopName, data);
   try {
-    const docId = getOngoingSessionDocId(troopName);
-    const resultsPayload = {
-      game: data.game,
-      livePlayers: data.livePlayers,
-      scorekeeperId: data.scorekeeperId,
-      scorekeeperName: data.scorekeeperName,
-      isLocked: data.isLocked ?? false,
-    };
-
-    const { error } = await supabase.from("game_results").upsert({
-      id: docId,
-      game_name: data.game.name,
-      rounds: data.round,
-      results: resultsPayload as any,
-      rounds_data: data.roundHistory as any,
-      played_at: new Date().toISOString(),
-    });
+    const { error } = await supabase.from("live_sessions").upsert(
+      {
+        troop: getOngoingSessionDocId(troopName),
+        game: data.game as any,
+        live_players: data.livePlayers as any,
+        round: data.round,
+        round_history: data.roundHistory as any,
+        scorekeeper_id: data.scorekeeperId ?? null,
+        scorekeeper_name: data.scorekeeperName ?? null,
+        is_locked: data.isLocked ?? false,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "troop" },
+    );
 
     if (error) console.debug("Failed to sync ongoing game session to cloud:", error);
   } catch (e) {
@@ -241,12 +234,12 @@ async function clearActiveGameSessionCloud(troopName: string) {
   if (!troopName) return;
   clearActiveGameSession(troopName);
   try {
-    const docId = getOngoingSessionDocId(troopName);
-    await supabase.from("game_results").delete().eq("id", docId);
+    await supabase.from("live_sessions").delete().eq("troop", getOngoingSessionDocId(troopName));
   } catch (e) {
     console.debug("Failed to clear cloud ongoing session:", e);
   }
 }
+
 
 type AnimalInfo = {
   emoji: string;
