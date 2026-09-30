@@ -717,13 +717,26 @@ function GameApp() {
     }
   }, [games, hydrated]);
 
-  // Ensure logged-in user is recognized in players list
+  // Ensure logged-in user is recognized in players list (match by ID first, then by name)
   useEffect(() => {
     if (!authUser || !hydrated) return;
     setPlayers((prev) => {
+      // 1. Exact ID match — player already exists; update display_name if it changed
+      const byId = prev.find((p) => p.id === authUser.id);
+      if (byId) {
+        if (byId.display_name !== authUser.name) {
+          // Name changed in auth — sync it to the local state (Supabase already has the update)
+          return prev.map((p) =>
+            p.id === authUser.id ? { ...p, display_name: authUser.name } : p,
+          );
+        }
+        return prev;
+      }
+      // 2. Name match (legacy / troop join where ID wasn't stored yet)
       if (prev.some((p) => p.display_name.toLowerCase() === authUser.name.toLowerCase())) {
         return prev;
       }
+      // 3. Not found at all — add as new player
       return [
         ...prev,
         {
