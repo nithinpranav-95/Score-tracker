@@ -2138,7 +2138,7 @@ function PlayView({
     return 0;
   });
 
-  const [isStandingsExpanded, setIsStandingsExpanded] = useState(false);
+  const [isStandingsExpanded, setIsStandingsExpanded] = useState(true);
 
   const isScorekeeper = checkIsScorekeeper(ongoingSession || null, currentUserId, authUserName);
   const isLockedByOther = Boolean(ongoingSession?.isLocked && !isScorekeeper);
