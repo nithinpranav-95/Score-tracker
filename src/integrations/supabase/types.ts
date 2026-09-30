@@ -219,6 +219,45 @@ export type Database = {
         }
         Relationships: []
       }
+      live_sessions: {
+        Row: {
+          created_at: string
+          game: Json
+          is_locked: boolean
+          live_players: Json
+          round: number
+          round_history: Json
+          scorekeeper_id: string | null
+          scorekeeper_name: string | null
+          troop: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          game: Json
+          is_locked?: boolean
+          live_players?: Json
+          round?: number
+          round_history?: Json
+          scorekeeper_id?: string | null
+          scorekeeper_name?: string | null
+          troop: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          game?: Json
+          is_locked?: boolean
+          live_players?: Json
+          round?: number
+          round_history?: Json
+          scorekeeper_id?: string | null
+          scorekeeper_name?: string | null
+          troop?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       players: {
         Row: {
           created_at: string
