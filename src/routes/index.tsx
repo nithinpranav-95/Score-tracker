@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import {
   ArrowUpDown,
@@ -73,7 +73,7 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: ScoreUp,
+  component: () => <ScoreUp tab="play" />,
 });
 
 type Tab = "play" | "players" | "ranks" | "history";
@@ -345,7 +345,7 @@ const demoGames: Game[] = [
   { id: "uno", name: "Uno", scoring_type: "points", high_score_wins: true, accent: "mint" },
 ];
 
-function ScoreUp() {
+export function ScoreUp({ tab }: { tab: Tab }) {
   const { user, loading } = useAuth();
   if (loading) {
     return (
@@ -357,8 +357,15 @@ function ScoreUp() {
     );
   }
   if (!user) return <AuthPage />;
-  return <GameApp />;
+  return <GameApp tab={tab} />;
 }
+
+const TAB_PATH = {
+  play: "/",
+  players: "/players",
+  ranks: "/ranks",
+  history: "/history",
+} as const;
 
 type PlayerStat = {
   id: string;
@@ -446,8 +453,11 @@ function computePlayerRanks(stats: PlayerStat[]): Map<string, number> {
   return rankMap;
 }
 
-function GameApp() {
-  const [tab, setTab] = useState<Tab>("play");
+function GameApp({ tab }: { tab: Tab }) {
+  const navigate = useNavigate();
+  const setTab = (t: Tab) => {
+    void navigate({ to: TAB_PATH[t] });
+  };
   const [games, setGames] = useState<Game[]>(demoGames);
   const [players, setPlayers] = useState<Player[]>(demoPlayers);
   const [setupGame, setSetupGame] = useState<Game | null>(null);
