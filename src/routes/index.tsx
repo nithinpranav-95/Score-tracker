@@ -22,6 +22,7 @@ import {
   Plus,
   Trash2,
   Trophy,
+  Swords,
   User,
   UserPlus,
   Users,
@@ -103,6 +104,13 @@ type PastSession = {
 
 const ACTIVE_SESSION_PREFIX = "scoreup_ongoing_game_";
 
+export type Challenge = {
+  id: string;
+  challengerId: string;
+  challengedId: string;
+  status: "pending" | "accepted" | "denied";
+};
+
 type ActiveSessionData = {
   game: Game;
   livePlayers: LivePlayer[];
@@ -112,6 +120,7 @@ type ActiveSessionData = {
   scorekeeperName?: string | undefined;
 
   isLocked?: boolean;
+  challenges?: Challenge[];
 };
 
 function getOngoingSessionDocId(troopName: string): string {
@@ -168,14 +177,16 @@ async function loadActiveGameSessionCloud(troopName: string): Promise<ActiveSess
       return null;
     }
 
+    const gameJson = data.game as any;
     const cloudData: ActiveSessionData = {
-      game: data.game as unknown as Game,
+      game: gameJson as unknown as Game,
       livePlayers: (data.live_players as unknown as LivePlayer[]) || [],
       round: data.round || 1,
       roundHistory: (data.round_history as unknown as Record<string, number>[]) || [],
       scorekeeperId: data.scorekeeper_id ?? undefined,
       scorekeeperName: data.scorekeeper_name ?? undefined,
       isLocked: Boolean(data.is_locked),
+      challenges: gameJson.challenges || [],
     };
     saveActiveGameSession(troopName, cloudData);
     return cloudData;
@@ -200,10 +211,11 @@ async function saveActiveGameSessionCloud(troopName: string, data: ActiveSession
   if (!troopName || !data || !data.game) return;
   saveActiveGameSession(troopName, data);
   try {
+    const gameToSave = { ...data.game, challenges: data.challenges || [] };
     const { error } = await supabase.from("live_sessions").upsert(
       {
         troop: getOngoingSessionDocId(troopName),
-        game: data.game as any,
+        game: gameToSave as any,
         live_players: data.livePlayers as any,
         round: data.round,
         round_history: data.roundHistory as any,
@@ -1372,6 +1384,7 @@ function GameApp({ tab }: { tab: Tab }) {
             ongoingSession={ongoingSession}
             onResumeOngoing={handleResumeOngoingGame}
             onDiscardOngoing={handleDiscardOngoingGame}
+            onUpdateOngoingSession={persistActiveSession}
           />
         )}
         {tab === "players" && (
@@ -2160,6 +2173,7 @@ function PlayView({
   ongoingSession,
   onResumeOngoing,
   onDiscardOngoing,
+  onUpdateOngoingSession,
 }: {
   games: Game[];
   players: Player[];
@@ -2176,6 +2190,7 @@ function PlayView({
   ongoingSession?: ActiveSessionData | null;
   onResumeOngoing?: () => void;
   onDiscardOngoing?: () => void;
+  onUpdateOngoingSession?: (data: ActiveSessionData) => void;
 }) {
   const sortedPlayers = [...players].sort((a, b) => {
     const aIsMe =
@@ -2193,6 +2208,36 @@ function PlayView({
 
   const isScorekeeper = checkIsScorekeeper(ongoingSession || null, currentUserId, authUserName);
   const isLockedByOther = Boolean(ongoingSession?.isLocked && !isScorekeeper);
+
+  function handleSendChallenge(targetPlayerId: string) {
+    if (!currentUserId || !ongoingSession || !onUpdateOngoingSession) return;
+    const newChallenge: Challenge = {
+      id: crypto.randomUUID(),
+      challengerId: currentUserId,
+      challengedId: targetPlayerId,
+      status: "pending",
+    };
+    onUpdateOngoingSession({
+      ...ongoingSession,
+      challenges: [...(ongoingSession.challenges || []), newChallenge],
+    });
+  }
+
+  function handleAcceptChallenge(challengeId: string) {
+    if (!ongoingSession || !onUpdateOngoingSession) return;
+    const updated = (ongoingSession.challenges || []).map((c) =>
+      c.id === challengeId ? { ...c, status: "accepted" as const } : c,
+    );
+    onUpdateOngoingSession({ ...ongoingSession, challenges: updated });
+  }
+
+  function handleDenyChallenge(challengeId: string) {
+    if (!ongoingSession || !onUpdateOngoingSession) return;
+    const updated = (ongoingSession.challenges || []).map((c) =>
+      c.id === challengeId ? { ...c, status: "denied" as const } : c,
+    );
+    onUpdateOngoingSession({ ...ongoingSession, challenges: updated });
+  }
 
   // Compute top 3 troop rankings
   const stats = playerStats(players, sessions);
@@ -2286,35 +2331,96 @@ function PlayView({
                     .sort((a, b) =>
                       ongoingSession.game.high_score_wins ? b.score - a.score : a.score - b.score,
                     )
-                    .map((player, idx) => (
-                      <div
-                        key={player.id}
-                        className={`flex items-center gap-2 rounded-xl border p-2 transition ${
-                          idx === 0
-                            ? "border-primary/40 bg-primary/10 shadow-sm"
-                            : "border-border/60 bg-card/60"
-                        }`}
-                      >
-                        <span
-                          className={`grid size-6 place-items-center rounded-md text-[11px] font-black ${
+                    .map((player, idx) => {
+                      const isMe = currentUserId === player.id;
+                      const pendingSent = ongoingSession.challenges?.find(
+                        (c) =>
+                          c.challengerId === currentUserId &&
+                          c.challengedId === player.id &&
+                          c.status === "pending"
+                      );
+                      const pendingReceived = ongoingSession.challenges?.find(
+                        (c) =>
+                          c.challengerId === player.id &&
+                          c.challengedId === currentUserId &&
+                          c.status === "pending"
+                      );
+                      const activeChallenge = ongoingSession.challenges?.find(
+                        (c) =>
+                          ((c.challengerId === currentUserId && c.challengedId === player.id) ||
+                            (c.challengerId === player.id && c.challengedId === currentUserId)) &&
+                          c.status === "accepted"
+                      );
+
+                      return (
+                        <div
+                          key={player.id}
+                          className={`flex items-center gap-2 rounded-xl border p-2 transition relative ${
                             idx === 0
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-secondary text-muted-foreground"
-                          }`}
+                              ? "border-primary/40 bg-primary/10 shadow-sm"
+                              : "border-border/60 bg-card/60"
+                          } ${activeChallenge ? "ring-1 ring-amber-500/50" : ""}`}
                         >
-                          #{idx + 1}
-                        </span>
-                        <span className="text-lg">{animals[player.spirit_animal] ?? "🦊"}</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-xs font-bold text-foreground">
-                            {player.display_name}
-                          </p>
-                          <p className="text-[10px] font-black text-primary tabular-nums">
-                            {player.score} pts
-                          </p>
+                          <span
+                            className={`grid size-6 shrink-0 place-items-center rounded-md text-[11px] font-black ${
+                              idx === 0
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-secondary text-muted-foreground"
+                            }`}
+                          >
+                            #{idx + 1}
+                          </span>
+                          <span className="text-lg shrink-0">{animals[player.spirit_animal] ?? "🦊"}</span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-bold text-foreground">
+                              {player.display_name}
+                            </p>
+                            <p className="text-[10px] font-black text-primary tabular-nums">
+                              {player.score} pts
+                            </p>
+                          </div>
+                          
+                          {/* Challenge Actions */}
+                          <div className="flex shrink-0 items-center justify-end">
+                            {isMe ? null : activeChallenge ? (
+                              <div
+                                className="flex items-center justify-center rounded-full bg-amber-500/20 p-1 text-amber-500"
+                                title="Active Challenge!"
+                              >
+                                <Swords className="size-3.5" />
+                              </div>
+                            ) : pendingSent ? (
+                              <span className="text-[9px] font-bold uppercase text-muted-foreground">
+                                Pending
+                              </span>
+                            ) : pendingReceived ? (
+                              <div className="flex flex-col gap-0.5">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleAcceptChallenge(pendingReceived.id); }}
+                                  className="rounded bg-primary px-1.5 py-0.5 text-[8px] font-bold uppercase text-primary-foreground transition hover:bg-primary/90"
+                                >
+                                  Accept
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDenyChallenge(pendingReceived.id); }}
+                                  className="rounded bg-destructive/20 px-1.5 py-0.5 text-[8px] font-bold uppercase text-destructive transition hover:bg-destructive/30"
+                                >
+                                  Deny
+                                </button>
+                              </div>
+                            ) : currentUserId ? (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleSendChallenge(player.id); }}
+                                className="flex items-center justify-center rounded-full bg-primary/10 p-1.5 text-primary transition hover:bg-primary/20"
+                                title="Send Challenge"
+                              >
+                                <Swords className="size-3" />
+                              </button>
+                            ) : null}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                 </div>
               )}
             </div>
