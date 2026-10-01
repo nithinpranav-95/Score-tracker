@@ -98,7 +98,7 @@ type PastSession = {
   date: string;
   playedAt: string;
   rounds: number;
-  results: { playerId: string; name: string; score: number; rank: number }[];
+  results: { playerId: string; name: string; score: number; rank: number; challengesWon?: number }[];
   roundsData: Record<string, number>[];
 };
 
@@ -1070,12 +1070,28 @@ function GameApp({ tab }: { tab: Tab }) {
       const ordered = [...livePlayers].sort((a, b) =>
         liveGame.high_score_wins ? b.score - a.score : a.score - b.score,
       );
-      const results = ordered.map((p, i) => ({
-        playerId: p.id,
-        name: p.display_name,
-        score: p.score,
-        rank: i + 1,
-      }));
+      const results = ordered.map((p, i) => {
+        let won = 0;
+        if (ongoingSession?.challenges) {
+          for (const c of ongoingSession.challenges) {
+            if (c.status === "accepted" && (c.challengerId === p.id || c.challengedId === p.id)) {
+              const opponentId = c.challengerId === p.id ? c.challengedId : c.challengerId;
+              const opponent = ordered.find(o => o.id === opponentId);
+              if (opponent) {
+                const pWins = liveGame.high_score_wins ? p.score > opponent.score : p.score < opponent.score;
+                if (pWins) won++;
+              }
+            }
+          }
+        }
+        return {
+          playerId: p.id,
+          name: p.display_name,
+          score: p.score,
+          rank: i + 1,
+          challengesWon: won > 0 ? won : undefined,
+        };
+      });
       const now = new Date();
       const session: PastSession = {
         id: crypto.randomUUID(),
@@ -2329,8 +2345,13 @@ function PlayView({
                     .sort((a, b) =>
                       ongoingSession.game.high_score_wins ? b.score - a.score : a.score - b.score,
                     )
-                    .map((player, idx) => {
+                    .map((player, idx, arr) => {
                       const isMe = currentUserId === player.id;
+                      
+                      const currentUserHasChallenge = (ongoingSession.challenges || []).some(
+                        (c) => (c.challengerId === currentUserId || c.challengedId === currentUserId) && c.status !== "denied"
+                      );
+
                       const pendingSent = ongoingSession.challenges?.find(
                         (c) =>
                           c.challengerId === currentUserId &&
@@ -2406,7 +2427,7 @@ function PlayView({
                                   Deny
                                 </button>
                               </div>
-                            ) : currentUserId ? (
+                            ) : currentUserId && !currentUserHasChallenge ? (
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleSendChallenge(player.id); }}
                                 className="flex items-center justify-center rounded-full bg-primary/10 p-1.5 text-primary transition hover:bg-primary/20"
@@ -3404,6 +3425,20 @@ function RanksView({
     return s.wins > best.wins || (s.wins === best.wins && s.rate > best.rate) ? s : best;
   }, null);
 
+  const challengeWins = new Map<string, number>();
+  filteredSessions.forEach((s) => {
+    s.results.forEach((r) => {
+      if (r.challengesWon) {
+        challengeWins.set(r.playerId, (challengeWins.get(r.playerId) || 0) + r.challengesWon);
+      }
+    });
+  });
+
+  const challengeLeaders = Array.from(challengeWins.entries())
+    .map(([id, wins]) => ({ player: players.find((p) => p.id === id), wins }))
+    .filter((item) => item.player && item.wins > 0)
+    .sort((a, b) => b.wins - a.wins);
+
   if (sessions.length === 0) {
     return (
       <section>
@@ -3800,6 +3835,32 @@ function RanksView({
           ))}
         </div>
       </div>
+
+      {challengeLeaders.length > 0 && (
+        <div className="mt-8 rounded-3xl border border-border/60 bg-card p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Swords className="size-6 text-amber-500" />
+            <h3 className="font-heading text-xl font-bold">Challenges Won</h3>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {challengeLeaders.map((item) => (
+              item.player && (
+                <div
+                  key={item.player.id}
+                  onClick={() => openPlayer?.(item.player.id)}
+                  className="flex cursor-pointer items-center justify-between rounded-xl border border-border/50 bg-secondary/30 p-3 transition hover:border-primary/50 hover:bg-secondary/60"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">{animals[item.player.spirit_animal] ?? "🦊"}</span>
+                    <span className="font-bold text-sm">{item.player.display_name}</span>
+                  </div>
+                  <span className="font-bold text-amber-500">{item.wins}</span>
+                </div>
+              )
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
