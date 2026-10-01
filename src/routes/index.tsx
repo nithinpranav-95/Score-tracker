@@ -514,7 +514,6 @@ function GameApp({ tab }: { tab: Tab }) {
       }
     }
     syncOngoingSession();
-    const interval = setInterval(syncOngoingSession, 4000);
 
     const channel = supabase
       .channel(`live_sessions_${getOngoingSessionDocId(currentTroop)}`)
@@ -541,7 +540,6 @@ function GameApp({ tab }: { tab: Tab }) {
     window.addEventListener("storage", handleLocalSync);
     return () => {
       isCancelled = true;
-      clearInterval(interval);
       supabase.removeChannel(channel);
       window.removeEventListener("scoreup_session_changed", handleLocalSync);
       window.removeEventListener("storage", handleLocalSync);
@@ -576,13 +574,13 @@ function GameApp({ tab }: { tab: Tab }) {
 
       try {
         const [playersRes, gamesRes, resultsRes] = await Promise.all([
-          supabase.from("players").select("*").order("created_at"),
+          supabase.from("players").select("id, name, spirit_animal").order("created_at"),
           supabase.from("custom_games").select("*").order("created_at"),
           supabase.from("game_results").select("*").order("played_at", { ascending: false }),
         ]);
 
         if (playersRes.data && playersRes.data.length > 0) {
-          cloudPlayers = playersRes.data.map((r) => ({
+          cloudPlayers = playersRes.data.map((r: any) => ({
             id: r.id,
             display_name: r.name,
             spirit_animal: r.spirit_animal,
@@ -2910,8 +2908,16 @@ function LiveSession({
   const [showLaterConfirm, setShowLaterConfirm] = useState(false);
   const [customPlayerOrder, setCustomPlayerOrder] = useState<string[] | null>(null);
 
-  const adjustEntry = (id: string, by: number) =>
+  const adjustEntry = (id: string, by: number) => {
+    try {
+      if (typeof window !== "undefined" && window.navigator && window.navigator.vibrate) {
+        window.navigator.vibrate(by > 0 ? 50 : 30);
+      }
+    } catch (e) {
+      // Ignore vibration errors
+    }
     setEntries((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + by }));
+  };
   const setEntry = (id: string, value: number | null) => {
     setEntries((prev) => {
       if (value === null) {
@@ -3183,7 +3189,7 @@ function LiveSession({
                     onClick={() => adjustEntry(p.id, -1)}
                     variant="secondary"
                     size="icon"
-                    className="size-12 rounded-xl"
+                    className="size-12 rounded-xl transition-transform active:scale-95"
                   >
                     <Minus />
                   </Button>
@@ -3202,7 +3208,7 @@ function LiveSession({
                     aria-label={`Add to ${p.display_name}`}
                     onClick={() => adjustEntry(p.id, 1)}
                     size="icon"
-                    className="size-12 rounded-xl bg-primary text-primary-foreground"
+                    className="size-12 rounded-xl bg-primary text-primary-foreground transition-transform active:scale-95"
                   >
                     <Plus />
                   </Button>
