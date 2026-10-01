@@ -11,8 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as HistoryRouteImport } from './routes/history'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as McpRouteImport } from './routes/mcp'
+import { Route as PlayersRouteImport } from './routes/players'
+import { Route as RanksRouteImport } from './routes/ranks'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 
 const IndexRoute = IndexRouteImport.update({
@@ -25,6 +28,11 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HistoryRoute = HistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -33,6 +41,16 @@ const LoginRoute = LoginRouteImport.update({
 const McpRoute = McpRouteImport.update({
   id: '/mcp',
   path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlayersRoute = PlayersRouteImport.update({
+  id: '/players',
+  path: '/players',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RanksRoute = RanksRouteImport.update({
+  id: '/ranks',
+  path: '/ranks',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Char91DotwellKnownChar93OauthProtectedResourceRoute =
@@ -45,46 +63,75 @@ const Char91DotwellKnownChar93OauthProtectedResourceRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/history': typeof HistoryRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
+  '/players': typeof PlayersRoute
+  '/ranks': typeof RanksRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/history': typeof HistoryRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
+  '/players': typeof PlayersRoute
+  '/ranks': typeof RanksRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/history': typeof HistoryRoute
   '/login': typeof LoginRoute
   '/mcp': typeof McpRoute
+  '/players': typeof PlayersRoute
+  '/ranks': typeof RanksRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/auth' | '/login' | '/mcp' | '/.well-known/oauth-protected-resource'
+    | '/'
+    | '/auth'
+    | '/history'
+    | '/login'
+    | '/mcp'
+    | '/players'
+    | '/ranks'
+    | '/.well-known/oauth-protected-resource'
   fileRoutesByTo: FileRoutesByTo
   to:
-    '/' | '/auth' | '/login' | '/mcp' | '/.well-known/oauth-protected-resource'
+    | '/'
+    | '/auth'
+    | '/history'
+    | '/login'
+    | '/mcp'
+    | '/players'
+    | '/ranks'
+    | '/.well-known/oauth-protected-resource'
   id:
     | '__root__'
     | '/'
     | '/auth'
+    | '/history'
     | '/login'
     | '/mcp'
+    | '/players'
+    | '/ranks'
     | '/.well-known/oauth-protected-resource'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
+  HistoryRoute: typeof HistoryRoute
   LoginRoute: typeof LoginRoute
   McpRoute: typeof McpRoute
+  PlayersRoute: typeof PlayersRoute
+  RanksRoute: typeof RanksRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
 }
 
@@ -104,6 +151,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/history': {
+      id: '/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof HistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -116,6 +170,20 @@ declare module '@tanstack/react-router' {
       path: '/mcp'
       fullPath: '/mcp'
       preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/players': {
+      id: '/players'
+      path: '/players'
+      fullPath: '/players'
+      preLoaderRoute: typeof PlayersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ranks': {
+      id: '/ranks'
+      path: '/ranks'
+      fullPath: '/ranks'
+      preLoaderRoute: typeof RanksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.well-known/oauth-protected-resource': {
@@ -131,8 +199,11 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
+  HistoryRoute: HistoryRoute,
   LoginRoute: LoginRoute,
   McpRoute: McpRoute,
+  PlayersRoute: PlayersRoute,
+  RanksRoute: RanksRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
 }
