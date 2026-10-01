@@ -3426,6 +3426,8 @@ function RanksView({
   }, null);
 
   const challengeWins = new Map<string, number>();
+  players.forEach(p => challengeWins.set(p.id, 0));
+  
   filteredSessions.forEach((s) => {
     s.results.forEach((r) => {
       if (r.challengesWon) {
@@ -3436,7 +3438,7 @@ function RanksView({
 
   const challengeLeaders = Array.from(challengeWins.entries())
     .map(([id, wins]) => ({ player: players.find((p) => p.id === id), wins }))
-    .filter((item) => item.player && item.wins > 0)
+    .filter((item) => item.player)
     .sort((a, b) => b.wins - a.wins);
 
   if (sessions.length === 0) {
