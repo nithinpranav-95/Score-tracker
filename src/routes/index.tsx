@@ -121,6 +121,8 @@ type ActiveSessionData = {
 
   isLocked?: boolean;
   challenges?: Challenge[];
+  isFinished?: boolean;
+  finalResults?: { playerId: string; name: string; score: number; rank: number }[];
 };
 
 function getOngoingSessionDocId(troopName: string): string {
@@ -187,6 +189,8 @@ async function loadActiveGameSessionCloud(troopName: string): Promise<ActiveSess
       scorekeeperName: data.scorekeeper_name ?? undefined,
       isLocked: Boolean(data.is_locked),
       challenges: gameJson.challenges || [],
+      isFinished: gameJson.isFinished || false,
+      finalResults: gameJson.finalResults || undefined,
     };
     saveActiveGameSession(troopName, cloudData);
     return cloudData;
@@ -211,7 +215,12 @@ async function saveActiveGameSessionCloud(troopName: string, data: ActiveSession
   if (!troopName || !data || !data.game) return;
   saveActiveGameSession(troopName, data);
   try {
-    const gameToSave = { ...data.game, challenges: data.challenges || [] };
+    const gameToSave = { 
+      ...data.game, 
+      challenges: data.challenges || [],
+      isFinished: data.isFinished || false,
+      finalResults: data.finalResults || undefined
+    };
     const { error } = await supabase.from("live_sessions").upsert(
       {
         troop: getOngoingSessionDocId(troopName),
@@ -1065,7 +1074,6 @@ function GameApp({ tab }: { tab: Tab }) {
   }
 
   async function endGame() {
-    removeActiveSession();
     if (liveGame) {
       const ordered = [...livePlayers].sort((a, b) =>
         liveGame.high_score_wins ? b.score - a.score : a.score - b.score,
@@ -1115,7 +1123,14 @@ function GameApp({ tab }: { tab: Tab }) {
       if (error) console.debug("Failed to save game result:", error);
       if (data) session.id = data.id;
       setSessions((list) => [session, ...list]);
-      setWinnerInfo({ gameName: liveGame.name, rounds: round, results });
+      
+      if (ongoingSession) {
+        const updated = { ...ongoingSession, isFinished: true, finalResults: results };
+        setOngoingSession(updated);
+        persistActiveSession(updated);
+      } else {
+        setWinnerInfo({ gameName: liveGame.name, rounds: round, results });
+      }
     }
     playVictory();
     setCelebrate(true);
@@ -1225,7 +1240,25 @@ function GameApp({ tab }: { tab: Tab }) {
         </div>
       )}
       {celebrate && <Confetti />}
-      {winnerInfo && <WinnerOverlay info={winnerInfo} onDone={() => setWinnerInfo(null)} />}
+      {ongoingSession?.isFinished && ongoingSession.finalResults ? (
+        <FlashCelebration
+          results={ongoingSession.finalResults}
+          onDone={() => {
+            const currentId = currentPlayerId || authUser?.id;
+            const isScorekeeper = checkIsScorekeeper(ongoingSession, currentId, authUser?.name || "Trooper");
+            if (isScorekeeper) {
+              removeActiveSession();
+            } else {
+              setOngoingSession(null);
+            }
+          }}
+        />
+      ) : winnerInfo ? (
+        <FlashCelebration
+          results={winnerInfo.results}
+          onDone={() => setWinnerInfo(null)}
+        />
+      ) : null}
       {editingSession && (
         <EditSessionModal
           session={editingSession}
@@ -4269,55 +4302,53 @@ function NewGameModal({
     </div>
   );
 }
-function WinnerOverlay({
-  info,
+function FlashCelebration({
+  results,
   onDone,
 }: {
-  info: { gameName: string; rounds: number; results: PastSession["results"] };
+  results: PastSession["results"];
   onDone: () => void;
 }) {
-  const winner = info.results[0];
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onDone();
+    }, 3000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-[1.5rem] border border-border bg-card p-6 text-center shadow-2xl">
-        <p className="text-xs font-bold uppercase tracking-widest text-primary">
-          {info.gameName} · {info.rounds} {info.rounds === 1 ? "round" : "rounds"}
-        </p>
-        <span className="animal-bob mt-3 inline-block text-6xl">🏆</span>
-        <h2 className="mt-2 font-heading text-3xl font-black">{winner?.name} wins!</h2>
-        <p className="mt-1 text-sm font-bold text-muted-foreground tabular-nums">
-          Final score: {winner?.score} points
-        </p>
-        <div className="mt-5 space-y-2 text-left">
-          {info.results.map((r) => (
+    <div className="fixed inset-0 z-[100] animate-in fade-in zoom-in duration-500 grid place-items-center bg-white/95 backdrop-blur-xl p-4 text-center overflow-y-auto">
+      <div className="flex flex-col items-center justify-center w-full max-w-2xl text-black my-auto">
+        <h1 className="text-6xl md:text-8xl font-black mb-8 animate-pulse text-amber-500 uppercase drop-shadow-2xl tracking-tighter">
+          Finished!
+        </h1>
+        <div className="grid gap-4 w-full">
+          {results.map((r) => (
             <div
               key={r.playerId}
-              className={`flex items-center justify-between rounded-xl border px-4 py-2.5 ${
-                r.rank === 1 ? "border-primary bg-primary/10" : "border-border bg-secondary/40"
+              className={`flex items-center justify-between p-4 md:p-6 rounded-3xl border-4 transition-all ${
+                r.rank === 1
+                  ? "border-amber-400 bg-amber-50 scale-105 shadow-2xl z-10"
+                  : "border-gray-200 bg-gray-50/80"
               }`}
             >
-              <span className="flex items-center gap-2 font-heading font-bold">
+              <div className="flex items-center gap-4">
                 <span
-                  className={`grid size-7 place-items-center rounded-lg text-sm font-black ${
-                    r.rank === 1
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary text-muted-foreground"
+                  className={`text-4xl md:text-5xl font-black ${
+                    r.rank === 1 ? "text-amber-500" : "text-gray-400"
                   }`}
                 >
-                  {r.rank}
+                  #{r.rank}
                 </span>
-                {r.name}
-              </span>
-              <span className="font-black tabular-nums">{r.score}</span>
+                <span className="text-2xl md:text-4xl font-bold truncate max-w-[150px] md:max-w-xs text-left">
+                  {r.name}
+                </span>
+              </div>
+              <span className="text-3xl md:text-5xl font-black tabular-nums">{r.score}</span>
             </div>
           ))}
         </div>
-        <Button
-          onClick={onDone}
-          className="mt-6 h-12 w-full rounded-xl bg-primary font-bold text-primary-foreground"
-        >
-          Back to games
-        </Button>
       </div>
     </div>
   );
