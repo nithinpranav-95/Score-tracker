@@ -1107,7 +1107,7 @@ function GameApp({ tab }: { tab: Tab }) {
           name: p.display_name,
           score: p.score,
           rank: i + 1,
-          challengesWon: won > 0 ? won : undefined,
+          ...(won > 0 ? { challengesWon: won } : {}),
         };
       });
       const now = new Date();
@@ -1259,7 +1259,7 @@ function GameApp({ tab }: { tab: Tab }) {
       {ongoingSession?.isFinished && ongoingSession.finalResults ? (
         <FlashCelebration
           results={ongoingSession.finalResults}
-          currentUserId={currentPlayerId || authUser?.id}
+          {...(currentPlayerId || authUser?.id ? { currentUserId: currentPlayerId || authUser?.id } : {})}
           onDone={() => {
             const currentId = currentPlayerId || authUser?.id;
             const isScorekeeper = checkIsScorekeeper(ongoingSession, currentId, authUser?.name || "Trooper");
@@ -1273,7 +1273,7 @@ function GameApp({ tab }: { tab: Tab }) {
       ) : winnerInfo ? (
         <FlashCelebration
           results={winnerInfo.results}
-          currentUserId={currentPlayerId || authUser?.id}
+          {...(currentPlayerId || authUser?.id ? { currentUserId: currentPlayerId || authUser?.id } : {})}
           onDone={() => setWinnerInfo(null)}
         />
       ) : null}
@@ -3896,21 +3896,21 @@ function RanksView({
             <h3 className="font-heading text-xl font-bold">Challenges Won</h3>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {challengeLeaders.map((item) => (
-              item.player && (
+            {challengeLeaders.map(({ player, wins }) =>
+              player ? (
                 <div
-                  key={item.player.id}
-                  onClick={() => openPlayer?.(item.player.id)}
+                  key={player.id}
+                  onClick={() => openPlayer?.(player.id)}
                   className="flex cursor-pointer items-center justify-between rounded-xl border border-border/50 bg-secondary/30 p-3 transition hover:border-primary/50 hover:bg-secondary/60"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-xl">{animals[item.player.spirit_animal] ?? "🦊"}</span>
-                    <span className="font-bold text-sm">{item.player.display_name}</span>
+                    <span className="text-xl">{animals[player.spirit_animal] ?? "🦊"}</span>
+                    <span className="font-bold text-sm">{player.display_name}</span>
                   </div>
-                  <span className="font-bold text-amber-500">{item.wins}</span>
+                  <span className="font-bold text-amber-500">{wins}</span>
                 </div>
-              )
-            ))}
+              ) : null,
+            )}
           </div>
         </div>
       )}
@@ -4334,7 +4334,7 @@ function FlashCelebration({
   onDone,
 }: {
   results: PastSession["results"];
-  currentUserId?: string;
+  currentUserId?: string | undefined;
   onDone: () => void;
 }) {
   useEffect(() => {
