@@ -10,3 +10,4 @@
 <!-- LOVABLE:END -->
 
 - Treat Lovable Cloud `game_results` as the sole score-history source; legacy browser storage must never restore deleted scores, because resets must apply consistently to every device.
+- Player names shown anywhere are resolved from `players` by id and refreshed via realtime on `players`/`game_results`, because a rename must appear on every device without reloading.
