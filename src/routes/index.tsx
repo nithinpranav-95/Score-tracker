@@ -4327,6 +4327,58 @@ function FlashCelebration({
 
   return (
     <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/95 backdrop-blur-2xl p-4 text-center overflow-y-auto animate-in fade-in zoom-in duration-300">
+      <style>{`
+        @keyframes flameDance {
+          0%, 100% {
+            transform: scale(1) rotate(-3deg);
+            filter: drop-shadow(0 0 25px rgba(255, 120, 0, 0.95)) drop-shadow(0 0 50px rgba(255, 60, 0, 0.7));
+          }
+          25% {
+            transform: scale(1.12) rotate(4deg) translateY(-6px);
+            filter: drop-shadow(0 0 35px rgba(255, 180, 0, 1)) drop-shadow(0 0 65px rgba(255, 80, 0, 0.9));
+          }
+          50% {
+            transform: scale(0.96) rotate(-4deg) translateY(3px);
+            filter: drop-shadow(0 0 20px rgba(255, 100, 0, 0.8)) drop-shadow(0 0 40px rgba(255, 40, 0, 0.6));
+          }
+          75% {
+            transform: scale(1.15) rotate(3deg) translateY(-4px);
+            filter: drop-shadow(0 0 40px rgba(255, 140, 0, 1)) drop-shadow(0 0 70px rgba(255, 100, 0, 0.95));
+          }
+        }
+        @keyframes emberRise {
+          0% {
+            transform: translateY(0) scale(1) rotate(0deg);
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(-90px) scale(0.2) rotate(180deg);
+            opacity: 0;
+          }
+        }
+        @keyframes sadWobble {
+          0%, 100% { transform: rotate(0deg) scale(1); }
+          20% { transform: rotate(-8deg) scale(1.05); }
+          40% { transform: rotate(8deg) scale(0.98); }
+          60% { transform: rotate(-5deg) scale(1.03); }
+          80% { transform: rotate(5deg) scale(0.99); }
+        }
+        @keyframes tearDrop {
+          0% { transform: translateY(0) scale(0.8); opacity: 0; }
+          50% { opacity: 1; }
+          100% { transform: translateY(35px) scale(1.2); opacity: 0; }
+        }
+        .animate-flame-dance {
+          animation: flameDance 0.75s infinite ease-in-out alternate;
+        }
+        .animate-sad-wobble {
+          animation: sadWobble 1.2s infinite ease-in-out;
+        }
+        .animate-tear-drop {
+          animation: tearDrop 0.9s infinite linear;
+        }
+      `}</style>
+
       <div className="flex flex-col items-center justify-center w-full max-w-xl text-white my-auto py-6">
         <div className="flex items-center justify-center gap-3 mb-6">
           <h1 className="text-4xl md:text-6xl font-black tracking-tight uppercase bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 bg-clip-text text-transparent drop-shadow-md">
@@ -4342,24 +4394,41 @@ function FlashCelebration({
             return (
               <div
                 key={r.playerId}
-                className={`flex flex-col items-center justify-center p-8 md:p-10 rounded-3xl border-4 transition-all shadow-2xl ${
+                className={`flex flex-col items-center justify-center p-8 md:p-10 rounded-3xl border-4 transition-all shadow-2xl relative overflow-hidden ${
                   isTop3
-                    ? "border-amber-500 bg-gradient-to-b from-amber-950/80 via-orange-950/60 to-slate-900/90 shadow-[0_0_35px_rgba(249,115,22,0.5)] scale-105"
+                    ? "border-amber-500 bg-gradient-to-b from-amber-950/90 via-orange-950/70 to-slate-900/90 shadow-[0_0_40px_rgba(249,115,22,0.6)] scale-105"
                     : isLastTwo
                     ? "border-slate-800 bg-slate-900/80"
                     : "border-slate-700 bg-slate-900/90"
                 }`}
               >
                 {isTop3 ? (
-                  <div className="relative mb-4 flex items-center justify-center">
+                  <div className="relative mb-6 flex items-center justify-center">
+                    <div className="absolute size-32 md:size-44 rounded-full bg-orange-500/30 blur-2xl animate-pulse" />
+
+                    {Array.from({ length: 8 }).map((_, i) => (
+                      <span
+                        key={i}
+                        className="absolute size-2 rounded-full bg-amber-400 shadow-[0_0_8px_#f59e0b]"
+                        style={{
+                          bottom: "10px",
+                          left: `${20 + i * 10}%`,
+                          animation: `emberRise ${1 + (i % 4) * 0.3}s infinite ease-out ${(i % 3) * 0.2}s`,
+                        }}
+                      />
+                    ))}
+
                     <img
                       src="/fire-icon.png"
-                      alt="Burning Flame"
-                      className="size-24 md:size-32 animate-pulse drop-shadow-[0_0_30px_rgba(249,115,22,1)]"
+                      alt="Dancing Flame"
+                      className="size-28 md:size-36 animate-flame-dance relative z-10"
                     />
                   </div>
                 ) : isLastTwo ? (
-                  <div className="mb-4 text-6xl md:text-7xl">😢</div>
+                  <div className="relative mb-6 flex flex-col items-center justify-center">
+                    <div className="text-7xl md:text-8xl animate-sad-wobble">😢</div>
+                    <span className="absolute -bottom-4 text-cyan-300 animate-tear-drop text-2xl">💧</span>
+                  </div>
                 ) : null}
 
                 <span
