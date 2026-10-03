@@ -3798,10 +3798,7 @@ function RanksView({
                 stroke="var(--muted-foreground)"
                 domain={metric === "rank" ? [0, squadSize] : metric === "rate" ? [0, 100] : [0, "auto"]}
                 tickFormatter={(v) => {
-                  if (metric === "rank") {
-                    const r = squadSize - Math.round(v) + 1;
-                    return r >= 1 && r <= squadSize ? `#${r}` : "";
-                  }
+                  if (metric === "rank") return "";
                   return metric === "rate" ? `${v}%` : `${v}`;
                 }}
                 allowDecimals={false}
