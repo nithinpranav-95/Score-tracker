@@ -4317,37 +4317,79 @@ function FlashCelebration({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const totalPlayers = results.length;
+
   return (
-    <div className="fixed inset-0 z-[100] animate-in fade-in zoom-in duration-500 grid place-items-center bg-white/95 backdrop-blur-xl p-4 text-center overflow-y-auto">
-      <div className="flex flex-col items-center justify-center w-full max-w-2xl text-black my-auto">
-        <h1 className="text-6xl md:text-8xl font-black mb-8 animate-pulse text-amber-500 uppercase drop-shadow-2xl tracking-tighter">
-          Finished!
-        </h1>
-        <div className="grid gap-4 w-full">
-          {results.map((r) => (
-            <div
-              key={r.playerId}
-              className={`flex items-center justify-between p-4 md:p-6 rounded-3xl border-4 transition-all ${
-                r.rank === 1
-                  ? "border-amber-400 bg-amber-50 scale-105 shadow-2xl z-10"
-                  : "border-gray-200 bg-gray-50/80"
-              }`}
-            >
-              <div className="flex items-center gap-4">
-                <span
-                  className={`text-4xl md:text-5xl font-black ${
-                    r.rank === 1 ? "text-amber-500" : "text-gray-400"
-                  }`}
-                >
-                  #{r.rank}
-                </span>
-                <span className="text-2xl md:text-4xl font-bold truncate max-w-[150px] md:max-w-xs text-left">
-                  {r.name}
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/95 backdrop-blur-2xl p-4 text-center overflow-y-auto animate-in fade-in zoom-in duration-300">
+      <div className="flex flex-col items-center justify-center w-full max-w-2xl text-white my-auto py-6">
+        <div className="flex items-center justify-center gap-3 mb-6">
+          <img
+            src="/fire-icon.png"
+            alt="Burning Flame"
+            className="size-12 md:size-16 animate-pulse drop-shadow-[0_0_25px_rgba(249,115,22,1)]"
+          />
+          <h1 className="text-4xl md:text-6xl font-black tracking-tight uppercase bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 bg-clip-text text-transparent drop-shadow-md">
+            Finished!
+          </h1>
+          <img
+            src="/fire-icon.png"
+            alt="Burning Flame"
+            className="size-12 md:size-16 animate-pulse drop-shadow-[0_0_25px_rgba(249,115,22,1)]"
+          />
+        </div>
+
+        <div className="grid gap-3 w-full">
+          {results.map((r) => {
+            const isTop3 = r.rank <= 3;
+            const isLastTwo = !isTop3 && r.rank >= Math.max(4, totalPlayers - 1);
+
+            return (
+              <div
+                key={r.playerId}
+                className={`flex items-center justify-between p-4 md:p-5 rounded-2xl border-2 transition-all ${
+                  isTop3
+                    ? "border-amber-500/80 bg-gradient-to-r from-amber-950/60 via-orange-950/40 to-slate-900/80 shadow-[0_0_20px_rgba(249,115,22,0.3)] scale-[1.02]"
+                    : isLastTwo
+                    ? "border-slate-800 bg-slate-900/60 opacity-80"
+                    : "border-slate-700/60 bg-slate-900/80"
+                }`}
+              >
+                <div className="flex items-center gap-3 md:gap-4 min-w-0">
+                  <span
+                    className={`text-2xl md:text-3xl font-black shrink-0 ${
+                      r.rank === 1
+                        ? "text-amber-400"
+                        : r.rank === 2
+                        ? "text-slate-300"
+                        : r.rank === 3
+                        ? "text-amber-600"
+                        : "text-slate-500"
+                    }`}
+                  >
+                    #{r.rank}
+                  </span>
+
+                  {isTop3 ? (
+                    <img
+                      src="/fire-icon.png"
+                      alt="Fire rank"
+                      className="size-8 md:size-10 shrink-0 animate-pulse drop-shadow-[0_0_12px_rgba(249,115,22,0.9)]"
+                    />
+                  ) : isLastTwo ? (
+                    <span className="text-2xl md:text-3xl shrink-0">😢</span>
+                  ) : null}
+
+                  <span className="text-lg md:text-2xl font-bold truncate text-left text-slate-100">
+                    {r.name}
+                  </span>
+                </div>
+
+                <span className="text-xl md:text-3xl font-black tabular-nums shrink-0 text-amber-400">
+                  {r.score} pts
                 </span>
               </div>
-              <span className="text-3xl md:text-5xl font-black tabular-nums">{r.score}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
