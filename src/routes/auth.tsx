@@ -2,7 +2,14 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Check, Gamepad2, LogIn, Mail, Plus, User, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createTroop, enterTroop, spiritAnimals, useAuth, signOut } from "@/lib/auth";
+import {
+  TROOP_NAME,
+  createTroop,
+  enterTroop,
+  spiritAnimals,
+  useAuth,
+  signOut,
+} from "@/lib/auth";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -39,7 +46,13 @@ export function AuthPage() {
     }
     return "enter";
   });
-  const [troop, setTroop] = useState("");
+  const [troop, setTroop] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("mode") === "create") return "";
+    }
+    return TROOP_NAME;
+  });
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [animal, setAnimal] = useState("lion");
