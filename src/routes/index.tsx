@@ -4334,7 +4334,7 @@ function FlashCelebration({
   onDone,
 }: {
   results: PastSession["results"];
-  currentUserId?: string;
+  currentUserId?: string | undefined;
   onDone: () => void;
 }) {
   useEffect(() => {
