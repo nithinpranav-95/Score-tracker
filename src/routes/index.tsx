@@ -98,8 +98,10 @@ type PastSession = {
   date: string;
   playedAt: string;
   rounds: number;
-  results: { playerId: string; name: string; score: number; rank: number; challengesWon?: number }[];
+  results: { playerId: string; name: string; score: number; rank: number; challengesWon?: number; editedBy?: string; editedAt?: string }[];
   roundsData: Record<string, number>[];
+  editedBy?: string;
+  editedAt?: string;
 };
 
 const ACTIVE_SESSION_PREFIX = "scoreup_ongoing_game_";
@@ -611,18 +613,26 @@ function GameApp({ tab }: { tab: Tab }) {
           const finishedResults = resultsRes.data.filter(
             (r) => !r.id.startsWith("ongoing_session_"),
           );
-          cloudSessions = finishedResults.map((r) => ({
-            id: r.id,
-            gameName: r.game_name,
-            date: new Date(r.played_at).toLocaleDateString(undefined, {
-              day: "numeric",
-              month: "short",
-            }),
-            playedAt: r.played_at,
-            rounds: r.rounds,
-            results: (r.results as PastSession["results"]) ?? [],
-            roundsData: (r.rounds_data as PastSession["roundsData"]) ?? [],
-          }));
+          cloudSessions = finishedResults.map((r) => {
+            const resArr = (r.results as PastSession["results"]) ?? [];
+            const firstRes = resArr[0] as any;
+            const editedBy = (r as any).edited_by || firstRes?.editedBy || undefined;
+            const editedAt = (r as any).edited_at || firstRes?.editedAt || undefined;
+            return {
+              id: r.id,
+              gameName: r.game_name,
+              date: new Date(r.played_at).toLocaleDateString(undefined, {
+                day: "numeric",
+                month: "short",
+              }),
+              playedAt: r.played_at,
+              rounds: r.rounds,
+              results: resArr,
+              roundsData: (r.rounds_data as PastSession["roundsData"]) ?? [],
+              editedBy,
+              editedAt,
+            };
+          });
         }
       } catch (err) {
         console.debug("Cloud fetch failed, falling back to local storage:", err);
@@ -1143,10 +1153,16 @@ function GameApp({ tab }: { tab: Tab }) {
     if (!session) return;
     const game = games.find((g) => g.name === session.gameName);
     const highWins = game?.high_score_wins ?? true;
+    const now = new Date();
+    const editedAt = `${now.toLocaleDateString(undefined, { month: "short", day: "numeric" })} at ${now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+    const editedBy = authUser?.name || "Trooper";
+
     const ordered = session.results
       .map((r) => ({
         ...r,
         score: roundsData.reduce((sum, rd) => sum + (rd[r.playerId] ?? 0), 0),
+        editedBy,
+        editedAt,
       }))
       .sort((a, b) => (highWins ? b.score - a.score : a.score - b.score))
       .map((r, i) => ({ ...r, rank: i + 1 }));
@@ -1156,7 +1172,7 @@ function GameApp({ tab }: { tab: Tab }) {
       .eq("id", sessionId);
     if (error) console.debug("Failed to update game result:", error);
     setSessions((list) =>
-      list.map((s) => (s.id === sessionId ? { ...s, results: ordered, roundsData } : s)),
+      list.map((s) => (s.id === sessionId ? { ...s, results: ordered, roundsData, editedBy, editedAt } : s)),
     );
     setEditingSession(null);
   }
@@ -3967,6 +3983,8 @@ function HistoryView({
     w: s.results[0]?.name ?? "—",
     d: `${s.date} · ${s.rounds} rounds`,
     s: `${s.results[0]?.score ?? 0} pts`,
+    editedBy: s.editedBy || s.results[0]?.editedBy,
+    editedAt: s.editedAt || s.results[0]?.editedAt,
   }));
   return (
     <section>
@@ -3981,14 +3999,20 @@ function HistoryView({
               key={x.key}
               className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4"
             >
-              <span className="grid size-12 place-items-center rounded-xl bg-secondary text-2xl">
+              <span className="grid size-12 place-items-center rounded-xl bg-secondary text-2xl shrink-0">
                 🏆
               </span>
-              <div className="flex-1">
-                <p className="font-heading text-lg font-bold">
+              <div className="flex-1 min-w-0">
+                <p className="font-heading text-lg font-bold truncate">
                   {x.g} · {x.w} won
                 </p>
                 <p className="text-sm text-muted-foreground">{x.d}</p>
+                {x.editedBy && x.editedAt && (
+                  <p className="mt-1 text-xs font-semibold text-amber-500 flex items-center gap-1">
+                    <Pencil className="size-3 shrink-0" />
+                    <span>Edited by <strong className="text-foreground font-bold">{x.editedBy}</strong> on {x.editedAt}</span>
+                  </p>
+                )}
               </div>
               <p className="font-bold text-primary">{x.s}</p>
               <div className="flex items-center gap-1">
