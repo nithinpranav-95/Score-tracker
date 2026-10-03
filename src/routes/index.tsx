@@ -1107,7 +1107,7 @@ function GameApp({ tab }: { tab: Tab }) {
           name: p.display_name,
           score: p.score,
           rank: i + 1,
-          challengesWon: won > 0 ? won : undefined,
+          ...(won > 0 ? { challengesWon: won } : {}),
         };
       });
       const now = new Date();
@@ -1259,7 +1259,7 @@ function GameApp({ tab }: { tab: Tab }) {
       {ongoingSession?.isFinished && ongoingSession.finalResults ? (
         <FlashCelebration
           results={ongoingSession.finalResults}
-          currentUserId={currentPlayerId || authUser?.id}
+          {...(currentPlayerId || authUser?.id ? { currentUserId: currentPlayerId || authUser?.id } : {})}
           onDone={() => {
             const currentId = currentPlayerId || authUser?.id;
             const isScorekeeper = checkIsScorekeeper(ongoingSession, currentId, authUser?.name || "Trooper");
@@ -1273,7 +1273,7 @@ function GameApp({ tab }: { tab: Tab }) {
       ) : winnerInfo ? (
         <FlashCelebration
           results={winnerInfo.results}
-          currentUserId={currentPlayerId || authUser?.id}
+          {...(currentPlayerId || authUser?.id ? { currentUserId: currentPlayerId || authUser?.id } : {})}
           onDone={() => setWinnerInfo(null)}
         />
       ) : null}
