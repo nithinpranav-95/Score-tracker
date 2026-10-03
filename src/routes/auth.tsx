@@ -214,7 +214,7 @@ export function AuthPage() {
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. Nithin"
+                      placeholder="Your name"
                       className={`${inputCls} pl-10`}
                     />
                   </div>
