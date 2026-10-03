@@ -1243,6 +1243,7 @@ function GameApp({ tab }: { tab: Tab }) {
       {ongoingSession?.isFinished && ongoingSession.finalResults ? (
         <FlashCelebration
           results={ongoingSession.finalResults}
+          currentUserId={currentPlayerId || authUser?.id}
           onDone={() => {
             const currentId = currentPlayerId || authUser?.id;
             const isScorekeeper = checkIsScorekeeper(ongoingSession, currentId, authUser?.name || "Trooper");
@@ -1256,6 +1257,7 @@ function GameApp({ tab }: { tab: Tab }) {
       ) : winnerInfo ? (
         <FlashCelebration
           results={winnerInfo.results}
+          currentUserId={currentPlayerId || authUser?.id}
           onDone={() => setWinnerInfo(null)}
         />
       ) : null}
@@ -4304,9 +4306,11 @@ function NewGameModal({
 }
 function FlashCelebration({
   results,
+  currentUserId,
   onDone,
 }: {
   results: PastSession["results"];
+  currentUserId?: string;
   onDone: () => void;
 }) {
   useEffect(() => {
@@ -4318,73 +4322,65 @@ function FlashCelebration({
   }, []);
 
   const totalPlayers = results.length;
+  const myResult = results.find((r) => r.playerId === currentUserId);
+  const displayResults = myResult ? [myResult] : results;
 
   return (
     <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/95 backdrop-blur-2xl p-4 text-center overflow-y-auto animate-in fade-in zoom-in duration-300">
-      <div className="flex flex-col items-center justify-center w-full max-w-2xl text-white my-auto py-6">
+      <div className="flex flex-col items-center justify-center w-full max-w-xl text-white my-auto py-6">
         <div className="flex items-center justify-center gap-3 mb-6">
-          <img
-            src="/fire-icon.png"
-            alt="Burning Flame"
-            className="size-12 md:size-16 animate-pulse drop-shadow-[0_0_25px_rgba(249,115,22,1)]"
-          />
           <h1 className="text-4xl md:text-6xl font-black tracking-tight uppercase bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 bg-clip-text text-transparent drop-shadow-md">
-            Finished!
+            {myResult ? `You Finished #${myResult.rank}!` : "Final Results"}
           </h1>
-          <img
-            src="/fire-icon.png"
-            alt="Burning Flame"
-            className="size-12 md:size-16 animate-pulse drop-shadow-[0_0_25px_rgba(249,115,22,1)]"
-          />
         </div>
 
-        <div className="grid gap-3 w-full">
-          {results.map((r) => {
+        <div className="grid gap-4 w-full">
+          {displayResults.map((r) => {
             const isTop3 = r.rank <= 3;
             const isLastTwo = !isTop3 && r.rank >= Math.max(4, totalPlayers - 1);
 
             return (
               <div
                 key={r.playerId}
-                className={`flex items-center justify-between p-4 md:p-5 rounded-2xl border-2 transition-all ${
+                className={`flex flex-col items-center justify-center p-8 md:p-10 rounded-3xl border-4 transition-all shadow-2xl ${
                   isTop3
-                    ? "border-amber-500/80 bg-gradient-to-r from-amber-950/60 via-orange-950/40 to-slate-900/80 shadow-[0_0_20px_rgba(249,115,22,0.3)] scale-[1.02]"
+                    ? "border-amber-500 bg-gradient-to-b from-amber-950/80 via-orange-950/60 to-slate-900/90 shadow-[0_0_35px_rgba(249,115,22,0.5)] scale-105"
                     : isLastTwo
-                    ? "border-slate-800 bg-slate-900/60 opacity-80"
-                    : "border-slate-700/60 bg-slate-900/80"
+                    ? "border-slate-800 bg-slate-900/80"
+                    : "border-slate-700 bg-slate-900/90"
                 }`}
               >
-                <div className="flex items-center gap-3 md:gap-4 min-w-0">
-                  <span
-                    className={`text-2xl md:text-3xl font-black shrink-0 ${
-                      r.rank === 1
-                        ? "text-amber-400"
-                        : r.rank === 2
-                        ? "text-slate-300"
-                        : r.rank === 3
-                        ? "text-amber-600"
-                        : "text-slate-500"
-                    }`}
-                  >
-                    #{r.rank}
-                  </span>
-
-                  {isTop3 ? (
+                {isTop3 ? (
+                  <div className="relative mb-4 flex items-center justify-center">
                     <img
                       src="/fire-icon.png"
-                      alt="Fire rank"
-                      className="size-8 md:size-10 shrink-0 animate-pulse drop-shadow-[0_0_12px_rgba(249,115,22,0.9)]"
+                      alt="Burning Flame"
+                      className="size-24 md:size-32 animate-pulse drop-shadow-[0_0_30px_rgba(249,115,22,1)]"
                     />
-                  ) : isLastTwo ? (
-                    <span className="text-2xl md:text-3xl shrink-0">😢</span>
-                  ) : null}
+                  </div>
+                ) : isLastTwo ? (
+                  <div className="mb-4 text-6xl md:text-7xl">😢</div>
+                ) : null}
 
-                  <span className="text-lg md:text-2xl font-bold truncate text-left text-slate-100">
-                    {r.name}
-                  </span>
-                </div>
+                <span
+                  className={`text-3xl md:text-5xl font-black mb-2 ${
+                    r.rank === 1
+                      ? "text-amber-400"
+                      : r.rank === 2
+                      ? "text-slate-300"
+                      : r.rank === 3
+                      ? "text-amber-600"
+                      : "text-slate-400"
+                  }`}
+                >
+                  Position #{r.rank}
+                </span>
 
-                <span className="text-xl md:text-3xl font-black tabular-nums shrink-0 text-amber-400">
+                <h2 className="text-2xl md:text-4xl font-extrabold text-slate-100 mb-2 truncate max-w-full">
+                  {r.name}
+                </h2>
+
+                <span className="text-xl md:text-3xl font-black tabular-nums text-amber-400">
                   {r.score} pts
                 </span>
               </div>
