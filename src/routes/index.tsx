@@ -756,17 +756,98 @@ function GameApp({ tab }: { tab: Tab }) {
     }
   }, [games, hydrated]);
 
+  // Keep every device in sync: refetch players + finished games whenever they change in the cloud
+  useEffect(() => {
+    if (!hydrated) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    async function refreshShared() {
+      const [pRes, rRes] = await Promise.all([
+        supabase.from("players").select("id, name, spirit_animal, quote").order("created_at"),
+        supabase.from("game_results").select("*").order("played_at", { ascending: false }),
+      ]);
+      if (cancelled) return;
+      let nameById = new Map<string, string>();
+      if (pRes.data) {
+        const fresh: Player[] = pRes.data.map((r) => ({
+          id: r.id,
+          display_name: r.name,
+          spirit_animal: r.spirit_animal,
+          quote: cleanQuote(r.quote) || undefined,
+        }));
+        nameById = new Map(fresh.map((p) => [p.id, p.display_name]));
+        setPlayers(fresh);
+      }
+      if (rRes.data) {
+        setSessions(
+          rRes.data
+            .filter((r) => !r.id.startsWith("ongoing_session_"))
+            .map((r) => {
+              const resArr = ((r.results as PastSession["results"]) ?? []).map((x) => ({
+                ...x,
+                name: nameById.get(x.playerId) ?? x.name,
+              }));
+              const firstRes = resArr[0] as any;
+              return {
+                id: r.id,
+                gameName: r.game_name,
+                date: new Date(r.played_at).toLocaleDateString(undefined, {
+                  day: "numeric",
+                  month: "short",
+                }),
+                playedAt: r.played_at,
+                rounds: r.rounds,
+                results: resArr,
+                roundsData: (r.rounds_data as PastSession["roundsData"]) ?? [],
+                editedBy: firstRes?.editedBy || undefined,
+                editedAt: firstRes?.editedAt || undefined,
+              };
+            }),
+        );
+      }
+    }
+
+    function scheduleRefresh() {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(refreshShared, 300);
+    }
+
+    refreshShared();
+    const channel = supabase
+      .channel("shared_players_results")
+      .on("postgres_changes", { event: "*", schema: "public", table: "players" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "game_results" }, scheduleRefresh)
+      .subscribe();
+    function onVisible() {
+      if (document.visibilityState === "visible") scheduleRefresh();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [hydrated]);
+
   // Ensure logged-in user is recognized in players list (match by ID first, then by name)
   useEffect(() => {
     if (!authUser || !hydrated) return;
     setPlayers((prev) => {
-      // 1. Exact ID match — player already exists; update display_name if it changed
+      // 1. Exact ID match — the shared profile is the source of truth for the name
       const byId = prev.find((p) => p.id === authUser.id);
       if (byId) {
-        if (byId.display_name !== authUser.name) {
-          // Name changed in auth — sync it to the local state (Supabase already has the update)
-          return prev.map((p) =>
-            p.id === authUser.id ? { ...p, display_name: authUser.name } : p,
+        if (
+          byId.display_name !== authUser.name ||
+          byId.spirit_animal !== authUser.spirit_animal
+        ) {
+          setTimeout(() =>
+            setCurrentUser({
+              ...authUser,
+              name: byId.display_name,
+              spirit_animal: byId.spirit_animal,
+            }),
           );
         }
         return prev;
